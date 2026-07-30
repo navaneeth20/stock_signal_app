@@ -731,38 +731,29 @@ with tab_signal:
 
         comp_display = st.session_state.get("company_name", result.symbol)
         # ── Top Signal Card ─────────────────────────────────────────────────
-        st.markdown(
-            f"""
-            <div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
-                <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:12px; flex-wrap:wrap; justify-content:center;">
-                    <span style="font-size:18px;">{sig_emoji}</span>
-                    <span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
-                    <span class="mono-font" style="font-size:12px; font-weight:700; color:#58a6ff; background:rgba(88,166,255,0.12); padding:3px 10px; border-radius:12px; border:1px solid rgba(88,166,255,0.25);">⏳ Signal Active: {result.signal_age_days} Days</span>
-                </div>
-                <div style="font-size:24px; font-weight:800; color:#f0f6fc; margin-bottom:8px;">{comp_display}</div>
-                <div style="font-size:42px; font-weight:800; color:{sig_color}; text-shadow:0 0 35px {sig_color}88; margin-bottom:10px; letter-spacing:-0.02em;">
-                    {result.signal}
-                </div>
+        # ── Top Signal Card ─────────────────────────────────────────────────
+        change_bg = 'rgba(0,230,118,0.15)' if price_change >= 0 else 'rgba(255,23,68,0.15)'
+        change_fg = '#00e676' if price_change >= 0 else '#ff1744'
+        change_border = 'rgba(0,230,118,0.3)' if price_change >= 0 else 'rgba(255,23,68,0.3)'
+        arrow = '▲' if price_change >= 0 else '▼'
 
-                <div class="mono-font" style="font-size:22px; color:#f0f6fc; font-weight:700; margin-bottom:20px;">
-                    ₹{last['Close']:,.2f}
-                    <span style="font-size:15px; font-weight:600; padding:3px 10px; border-radius:8px; margin-left:8px; background:{'rgba(0,230,118,0.15)' if price_change >= 0 else 'rgba(255,23,68,0.15)'}; color:{'#00e676' if price_change >= 0 else '#ff1744'}; border:1px solid {'rgba(0,230,118,0.3)' if price_change >= 0 else 'rgba(255,23,68,0.3)'}">
-                        {'▲' if price_change >= 0 else '▼'} {abs(price_change):.2f}%
-                    </span>
-                </div>
-                <div style="font-size:12px; font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;">
-                    Signal Confidence Score
-                </div>
-                <div style="background:rgba(0,0,0,0.4); border-radius:10px; height:10px; width:65%; margin:0 auto 14px; padding:2px; border:1px solid rgba(255,255,255,0.06);">
-                    <div style="background:linear-gradient(90deg, {sig_color}bb, {sig_color}); height:100%; border-radius:8px; width:{result.confidence}%; box-shadow:0 0 12px {sig_color}aa;"></div>
-                </div>
-                <div class="mono-font" style="font-size:30px; font-weight:800; color:{sig_color}; text-shadow:0 0 20px {sig_color}66;">
-                    {result.confidence:.1f}%
-                </div>
-            </div>
-            """,
+        st.markdown(
+            f"""<div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
+<div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:12px; flex-wrap:wrap; justify-content:center;">
+<span style="font-size:18px;">{sig_emoji}</span>
+<span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
+<span class="mono-font" style="font-size:12px; font-weight:700; color:#58a6ff; background:rgba(88,166,255,0.12); padding:3px 10px; border-radius:12px; border:1px solid rgba(88,166,255,0.25);">⏳ Signal Active: {result.signal_age_days} Days</span>
+</div>
+<div style="font-size:24px; font-weight:800; color:#f0f6fc; margin-bottom:8px;">{comp_display}</div>
+<div style="font-size:42px; font-weight:800; color:{sig_color}; text-shadow:0 0 35px {sig_color}88; margin-bottom:10px; letter-spacing:-0.02em;">{result.signal}</div>
+<div class="mono-font" style="font-size:22px; color:#f0f6fc; font-weight:700; margin-bottom:20px;">₹{last['Close']:,.2f} <span style="font-size:15px; font-weight:600; padding:3px 10px; border-radius:8px; margin-left:8px; background:{change_bg}; color:{change_fg}; border:1px solid {change_border}">{arrow} {abs(price_change):.2f}%</span></div>
+<div style="font-size:12px; font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;">Signal Confidence Score</div>
+<div style="background:rgba(0,0,0,0.4); border-radius:10px; height:10px; width:65%; margin:0 auto 14px; padding:2px; border:1px solid rgba(255,255,255,0.06);"><div style="background:linear-gradient(90deg, {sig_color}bb, {sig_color}); height:100%; border-radius:8px; width:{result.confidence}%; box-shadow:0 0 12px {sig_color}aa;"></div></div>
+<div class="mono-font" style="font-size:30px; font-weight:800; color:{sig_color}; text-shadow:0 0 20px {sig_color}66;">{result.confidence:.1f}%</div>
+</div>""",
             unsafe_allow_html=True,
         )
+
 
         # ── Key Metrics Row ──────────────────────────────────────────────────
         m1, m2, m3, m4, m5, m6, m7 = st.columns(7)

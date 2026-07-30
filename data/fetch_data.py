@@ -192,16 +192,19 @@ def get_stock_name(symbol: str) -> str:
     """Get the clean official company name for any stock symbol."""
     from config import NIFTY50_STOCKS, NIFTY_MIDCAP, SECTOR_POOLS
 
-    sym_upper = symbol.upper()
+    clean_target = symbol.split(".")[0].upper().strip()
+
     # 1. Static dict check
     for stock in NIFTY50_STOCKS + NIFTY_MIDCAP:
-        if stock["symbol"].upper() == sym_upper:
+        clean_stock = stock["symbol"].split(".")[0].upper().strip()
+        if clean_stock == clean_target:
             return stock["name"]
 
     # 2. Sector pools check
     for sector, pool in SECTOR_POOLS.items():
         for stock in pool:
-            if stock["symbol"].upper() == sym_upper:
+            clean_stock = stock["symbol"].split(".")[0].upper().strip()
+            if clean_stock == clean_target:
                 return stock["name"]
 
     # 3. Yahoo Finance dynamic info lookup
@@ -216,13 +219,45 @@ def get_sector_peers(symbol: str) -> tuple[str, list[dict[str, str]]]:
     """Find sector category and list of peer stocks for a given symbol."""
     from config import NIFTY50_STOCKS, SECTOR_POOLS
 
-    sym_upper = symbol.upper()
+    clean_target = symbol.split(".")[0].upper().strip()
+
+    # 1. Direct match in sector pools
     for sector_name, pool in SECTOR_POOLS.items():
-        if any(s["symbol"].upper() == sym_upper for s in pool):
-            peers = [s for s in pool if s["symbol"].upper() != sym_upper]
+        if any(s["symbol"].split(".")[0].upper().strip() == clean_target for s in pool):
+            peers = [s for s in pool if s["symbol"].split(".")[0].upper().strip() != clean_target]
             return sector_name, peers
 
-    # Fallback to NIFTY 50 top stocks if sector not matched
-    default_peers = [s for s in NIFTY50_STOCKS[:10] if s["symbol"].upper() != sym_upper]
-    return "NIFTY 50", default_peers
+    # 2. Dynamic Yahoo Finance sector mapping fallback
+    info = get_company_info(symbol)
+    yf_sector = info.get("sector", "").lower()
+
+    sector_mapping = {
+        "technology": "IT & Software",
+        "financial services": "Banking & Financials",
+        "financial": "Banking & Financials",
+        "automotive": "Automobiles",
+        "consumer cyclical": "Automobiles",
+        "healthcare": "Pharma & Healthcare",
+        "utilities": "Energy & Utilities",
+        "energy": "Energy & Utilities",
+        "basic materials": "Metals & Mining",
+        "consumer defensive": "FMCG & Consumer",
+        "industrials": "Industrials & Cement",
+    }
+
+    matched_sector = None
+    for key, name in sector_mapping.items():
+        if key in yf_sector:
+            matched_sector = name
+            break
+
+    if matched_sector and matched_sector in SECTOR_POOLS:
+        pool = SECTOR_POOLS[matched_sector]
+        peers = [s for s in pool if s["symbol"].split(".")[0].upper().strip() != clean_target]
+        return matched_sector, peers
+
+    # Fallback to NIFTY 50 top stocks
+    default_peers = [s for s in NIFTY50_STOCKS if s["symbol"].split(".")[0].upper().strip() != clean_target]
+    return "Market Peers", default_peers[:8]
+
 
