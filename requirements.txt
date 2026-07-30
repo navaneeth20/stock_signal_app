@@ -3,7 +3,6 @@ pandas>=2.2.0
 numpy>=1.26.0
 plotly>=5.22.0
 yfinance>=0.2.40
-pandas-ta>=0.3.14b0
 requests>=2.31.0
 openai>=1.30.0
 scipy>=1.13.0
