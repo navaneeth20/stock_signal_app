@@ -47,8 +47,15 @@ from alerts.email import format_signal_email, send_email_alert
 from alerts.telegram import format_signal_message, send_telegram_alert
 from backtesting.backtest import run_backtest
 from charts.candlestick import build_equity_curve, build_price_chart
-from data.fetch_data import fetch_ohlcv, get_company_info, normalise_symbol
+from data.fetch_data import (
+    fetch_ohlcv,
+    get_company_info,
+    get_sector_peers,
+    get_stock_name,
+    normalise_symbol,
+)
 from data.news_sentiment import fetch_news_sentiment
+
 from database.database import (
     add_to_watchlist,
     get_recent_signals,
@@ -490,22 +497,13 @@ with st.sidebar:
 # HELPER: Load & Analyse
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _find_better_alternatives(current_symbol: str, current_confidence: float) -> list[dict]:
-    """Scan top benchmark stocks for higher confidence / stronger signals."""
-    peer_pool = [
-        {"symbol": "TCS.NS", "name": "Tata Consultancy Services"},
-        {"symbol": "INFY.NS", "name": "Infosys Ltd"},
-        {"symbol": "HDFCBANK.NS", "name": "HDFC Bank Ltd"},
-        {"symbol": "ICICIBANK.NS", "name": "ICICI Bank Ltd"},
-        {"symbol": "TATAMOTORS.NS", "name": "Tata Motors Ltd"},
-        {"symbol": "BHARTIARTL.NS", "name": "Bharti Airtel Ltd"},
-        {"symbol": "RELIANCE.NS", "name": "Reliance Industries"},
-        {"symbol": "LT.NS", "name": "Larsen & Toubro"},
-    ]
+def _find_better_alternatives(current_symbol: str, current_confidence: float) -> tuple[str, list[dict]]:
+    """Scan sector/category peer stocks for higher confidence or stronger signals."""
+    sector_name, peer_pool = get_sector_peers(current_symbol)
     better_list = []
     for item in peer_pool:
         sym = item["symbol"]
-        if sym == current_symbol:
+        if sym.upper() == current_symbol.upper():
             continue
         try:
             raw = fetch_ohlcv(sym, period="1y", interval="1d")
@@ -513,7 +511,7 @@ def _find_better_alternatives(current_symbol: str, current_confidence: float) ->
                 continue
             d = compute_all_indicators(raw)
             res = generate_signal(sym, d)
-            if res.confidence > current_confidence or (res.signal in ("Strong Buy", "Buy") and res.confidence >= 65):
+            if res.confidence >= current_confidence or (res.signal in ("Strong Buy", "Buy") and res.confidence >= 60):
                 last_p = d["Close"].iloc[-1]
                 prev_p = d["Close"].iloc[-2] if len(d) > 1 else last_p
                 chg = pct_change(float(prev_p), float(last_p))
@@ -525,11 +523,12 @@ def _find_better_alternatives(current_symbol: str, current_confidence: float) ->
                     "price": last_p,
                     "change": chg,
                     "rr": res.risk_reward,
+                    "sector": sector_name,
                 })
         except Exception:
             continue
     better_list.sort(key=lambda x: x["confidence"], reverse=True)
-    return better_list[:3]
+    return sector_name, better_list[:3]
 
 
 def load_and_analyse(symbol: str) -> None:
@@ -545,6 +544,9 @@ def load_and_analyse(symbol: str) -> None:
             result = generate_signal(symbol, df)
             risk = calculate_risk(df, result.signal, capital=capital, risk_per_trade=risk_pct / 100)
 
+            # Get full official company name
+            comp_name = get_stock_name(symbol)
+
             # 1. Multi-Timeframe (MTF) Alignment Analysis
             mtf_res = compute_mtf_alignment(symbol)
             result.mtf_result = mtf_res
@@ -552,8 +554,6 @@ def load_and_analyse(symbol: str) -> None:
             result.confidence = max(0.0, min(100.0, result.confidence + mtf_res.confidence_modifier))
 
             # 2. Market Sentiment & News Intelligence
-            comp_info = get_company_info(symbol)
-            comp_name = comp_info.get("shortName", symbol.replace(".NS", ""))
             news_res = fetch_news_sentiment(symbol, comp_name)
             result.news_result = news_res
 
@@ -561,8 +561,8 @@ def load_and_analyse(symbol: str) -> None:
             mc_res = run_monte_carlo_simulation(df, risk.entry_price, risk.stop_loss, risk.take_profit)
             result.mc_result = mc_res
 
-            # Find better alternatives
-            alternatives = _find_better_alternatives(symbol, result.confidence)
+            # Find better sector/category alternatives
+            sector_category, alternatives = _find_better_alternatives(symbol, result.confidence)
 
             # Persist signal
             save_signal(
@@ -579,14 +579,17 @@ def load_and_analyse(symbol: str) -> None:
             st.session_state.df = df
             st.session_state.signal_result = result
             st.session_state.risk = risk
+            st.session_state.company_name = comp_name
+            st.session_state.sector_category = sector_category
             st.session_state.better_alternatives = alternatives
             st.session_state.selected_symbol = symbol
             st.session_state.last_refresh = time.time()
-            logger.info("Analysis complete for %s: %s (MTF: %s)", symbol, result.signal, mtf_res.alignment_status)
+            logger.info("Analysis complete for %s (%s): %s", symbol, comp_name, result.signal)
 
         except Exception as exc:
             st.error(f"❌ Error loading {symbol}: {exc}")
             logger.exception("load_and_analyse failed for %s", symbol)
+
 
 
 
@@ -726,18 +729,21 @@ with tab_signal:
         sig_emoji = SIGNAL_EMOJI.get(result.signal, "📊")
         price_change = pct_change(float(prev["Close"]), float(last["Close"]))
 
+        comp_display = st.session_state.get("company_name", result.symbol)
         # ── Top Signal Card ─────────────────────────────────────────────────
         st.markdown(
             f"""
             <div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
-                <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:14px; flex-wrap:wrap; justify-content:center;">
+                <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:12px; flex-wrap:wrap; justify-content:center;">
                     <span style="font-size:18px;">{sig_emoji}</span>
                     <span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
                     <span class="mono-font" style="font-size:12px; font-weight:700; color:#58a6ff; background:rgba(88,166,255,0.12); padding:3px 10px; border-radius:12px; border:1px solid rgba(88,166,255,0.25);">⏳ Signal Active: {result.signal_age_days} Days</span>
                 </div>
+                <div style="font-size:24px; font-weight:800; color:#f0f6fc; margin-bottom:8px;">{comp_display}</div>
                 <div style="font-size:42px; font-weight:800; color:{sig_color}; text-shadow:0 0 35px {sig_color}88; margin-bottom:10px; letter-spacing:-0.02em;">
                     {result.signal}
                 </div>
+
                 <div class="mono-font" style="font-size:22px; color:#f0f6fc; font-weight:700; margin-bottom:20px;">
                     ₹{last['Close']:,.2f}
                     <span style="font-size:15px; font-weight:600; padding:3px 10px; border-radius:8px; margin-left:8px; background:{'rgba(0,230,118,0.15)' if price_change >= 0 else 'rgba(255,23,68,0.15)'}; color:{'#00e676' if price_change >= 0 else '#ff1744'}; border:1px solid {'rgba(0,230,118,0.3)' if price_change >= 0 else 'rgba(255,23,68,0.3)'}">
@@ -982,8 +988,10 @@ with tab_signal:
 
         # ── Better Stock Alternatives ──────────────────────────────────────────
         if "better_alternatives" in st.session_state and st.session_state.better_alternatives:
-            st.markdown('<div class="section-header">🌟 Better Stock Alternatives (Higher Confidence & Stronger Signals)</div>', unsafe_allow_html=True)
+            sec_title = st.session_state.get("sector_category", "Sector")
+            st.markdown(f'<div class="section-header">🌟 Better {sec_title} Alternatives (Industry Peers)</div>', unsafe_allow_html=True)
             alt_cols = st.columns(len(st.session_state.better_alternatives))
+
             for idx, (col, alt) in enumerate(zip(alt_cols, st.session_state.better_alternatives)):
                 alt_sig_color = SIGNAL_COLORS.get(alt["signal"], "#58a6ff")
                 with col:

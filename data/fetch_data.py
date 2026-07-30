@@ -173,7 +173,7 @@ def get_company_info(symbol: str) -> dict:
     try:
         info = yf.Ticker(symbol).info
         return {
-            "name": info.get("longName", symbol),
+            "name": info.get("longName") or info.get("shortName") or symbol,
             "sector": info.get("sector", "N/A"),
             "industry": info.get("industry", "N/A"),
             "marketCap": info.get("marketCap", 0),
@@ -186,3 +186,43 @@ def get_company_info(symbol: str) -> dict:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not fetch info for %s: %s", symbol, exc)
         return {}
+
+
+def get_stock_name(symbol: str) -> str:
+    """Get the clean official company name for any stock symbol."""
+    from config import NIFTY50_STOCKS, NIFTY_MIDCAP, SECTOR_POOLS
+
+    sym_upper = symbol.upper()
+    # 1. Static dict check
+    for stock in NIFTY50_STOCKS + NIFTY_MIDCAP:
+        if stock["symbol"].upper() == sym_upper:
+            return stock["name"]
+
+    # 2. Sector pools check
+    for sector, pool in SECTOR_POOLS.items():
+        for stock in pool:
+            if stock["symbol"].upper() == sym_upper:
+                return stock["name"]
+
+    # 3. Yahoo Finance dynamic info lookup
+    info = get_company_info(symbol)
+    if info.get("name") and info["name"] != symbol:
+        return info["name"]
+
+    return symbol.replace(".NS", "").replace(".BO", "")
+
+
+def get_sector_peers(symbol: str) -> tuple[str, list[dict[str, str]]]:
+    """Find sector category and list of peer stocks for a given symbol."""
+    from config import NIFTY50_STOCKS, SECTOR_POOLS
+
+    sym_upper = symbol.upper()
+    for sector_name, pool in SECTOR_POOLS.items():
+        if any(s["symbol"].upper() == sym_upper for s in pool):
+            peers = [s for s in pool if s["symbol"].upper() != sym_upper]
+            return sector_name, peers
+
+    # Fallback to NIFTY 50 top stocks if sector not matched
+    default_peers = [s for s in NIFTY50_STOCKS[:10] if s["symbol"].upper() != sym_upper]
+    return "NIFTY 50", default_peers
+

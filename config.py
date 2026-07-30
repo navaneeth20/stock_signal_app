@@ -115,6 +115,80 @@ INDEX_GROUPS: Dict[str, List[Dict[str, str]]] = {
 }
 
 # ─────────────────────────────────────────────
+# Sector & Category Pools for Peer Alternatives
+# ─────────────────────────────────────────────
+SECTOR_POOLS: Dict[str, List[Dict[str, str]]] = {
+    "IT & Software": [
+        {"symbol": "TCS.NS", "name": "Tata Consultancy Services"},
+        {"symbol": "INFY.NS", "name": "Infosys"},
+        {"symbol": "WIPRO.NS", "name": "Wipro"},
+        {"symbol": "HCLTECH.NS", "name": "HCL Technologies"},
+        {"symbol": "TECHM.NS", "name": "Tech Mahindra"},
+        {"symbol": "LTIM.NS", "name": "LTIMindtree"},
+        {"symbol": "PERSISTENT.NS", "name": "Persistent Systems"},
+        {"symbol": "COFORGE.NS", "name": "Coforge"},
+        {"symbol": "MPHASIS.NS", "name": "Mphasis"},
+    ],
+    "Banking & Financials": [
+        {"symbol": "HDFCBANK.NS", "name": "HDFC Bank"},
+        {"symbol": "ICICIBANK.NS", "name": "ICICI Bank"},
+        {"symbol": "SBIN.NS", "name": "State Bank of India"},
+        {"symbol": "KOTAKBANK.NS", "name": "Kotak Mahindra Bank"},
+        {"symbol": "AXISBANK.NS", "name": "Axis Bank"},
+        {"symbol": "BAJFINANCE.NS", "name": "Bajaj Finance"},
+        {"symbol": "BAJAJFINSV.NS", "name": "Bajaj Finserv"},
+        {"symbol": "INDUSINDBK.NS", "name": "IndusInd Bank"},
+    ],
+    "Automobiles": [
+        {"symbol": "TATAMOTORS.NS", "name": "Tata Motors"},
+        {"symbol": "M&M.NS", "name": "Mahindra & Mahindra"},
+        {"symbol": "MARUTI.NS", "name": "Maruti Suzuki"},
+        {"symbol": "HEROMOTOCO.NS", "name": "Hero MotoCorp"},
+        {"symbol": "BAJAJ-AUTO.NS", "name": "Bajaj Auto"},
+        {"symbol": "EICHERMOT.NS", "name": "Eicher Motors"},
+    ],
+    "Pharma & Healthcare": [
+        {"symbol": "SUNPHARMA.NS", "name": "Sun Pharmaceutical"},
+        {"symbol": "CIPLA.NS", "name": "Cipla"},
+        {"symbol": "DRREDDY.NS", "name": "Dr. Reddy's Laboratories"},
+        {"symbol": "DIVISLAB.NS", "name": "Divi's Laboratories"},
+        {"symbol": "APOLLOHOSP.NS", "name": "Apollo Hospitals"},
+        {"symbol": "SYNGENE.NS", "name": "Syngene International"},
+    ],
+    "Energy & Utilities": [
+        {"symbol": "RELIANCE.NS", "name": "Reliance Industries"},
+        {"symbol": "NTPC.NS", "name": "NTPC"},
+        {"symbol": "POWERGRID.NS", "name": "Power Grid Corporation"},
+        {"symbol": "ONGC.NS", "name": "Oil & Natural Gas Corp"},
+        {"symbol": "BPCL.NS", "name": "Bharat Petroleum"},
+        {"symbol": "COALINDIA.NS", "name": "Coal India"},
+    ],
+    "Metals & Mining": [
+        {"symbol": "TATASTEEL.NS", "name": "Tata Steel"},
+        {"symbol": "HINDALCO.NS", "name": "Hindalco Industries"},
+        {"symbol": "JSWSTEEL.NS", "name": "JSW Steel"},
+        {"symbol": "COALINDIA.NS", "name": "Coal India"},
+    ],
+    "FMCG & Consumer": [
+        {"symbol": "ITC.NS", "name": "ITC"},
+        {"symbol": "HINDUNILVR.NS", "name": "Hindustan Unilever"},
+        {"symbol": "NESTLEIND.NS", "name": "Nestle India"},
+        {"symbol": "TATACONSUM.NS", "name": "Tata Consumer Products"},
+        {"symbol": "BRITANNIA.NS", "name": "Britannia Industries"},
+        {"symbol": "ASIANPAINT.NS", "name": "Asian Paints"},
+        {"symbol": "TITAN.NS", "name": "Titan Company"},
+    ],
+    "Industrials & Cement": [
+        {"symbol": "LT.NS", "name": "Larsen & Toubro"},
+        {"symbol": "ULTRACEMCO.NS", "name": "UltraTech Cement"},
+        {"symbol": "GRASIM.NS", "name": "Grasim Industries"},
+        {"symbol": "ADANIENT.NS", "name": "Adani Enterprises"},
+        {"symbol": "ADANIPORTS.NS", "name": "Adani Ports"},
+    ],
+}
+
+
+# ─────────────────────────────────────────────
 # Indicator Defaults
 # ─────────────────────────────────────────────
 EMA_SHORT = 20
