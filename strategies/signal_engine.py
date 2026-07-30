@@ -59,6 +59,23 @@ class SignalResult:
     reasons: list[str] = field(default_factory=list)
     indicator_scores: dict = field(default_factory=dict)
     df: Optional[pd.DataFrame] = None
+    signal_age_days: int = 1
+    recommended_horizon: str = "5–15 Trading Days"
+
+
+def _compute_signal_age(df: pd.DataFrame) -> int:
+    """Count consecutive bars the current trend signal has been active."""
+    if "Supertrend_Direction" in df.columns and not df.empty:
+        col = df["Supertrend_Direction"]
+        last_val = col.iloc[-1]
+        count = 0
+        for val in reversed(col.tolist()):
+            if val == last_val:
+                count += 1
+            else:
+                break
+        return max(1, count)
+    return 1
 
 
 def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -154,7 +171,10 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
     take_profit = entry + 3.0 * atr  # 2:1 RRR at minimum
     rr = (take_profit - entry) / max(entry - stop_loss, 0.01)
 
-    logger.info("Signal for %s: %s (%.1f%%)", symbol, signal_label, confidence)
+    signal_age = _compute_signal_age(df)
+    horizon = "3–7 Trading Days" if signal_label in ("Strong Buy", "Strong Sell") else "7–15 Trading Days"
+
+    logger.info("Signal for %s: %s (%.1f%%, %d days active)", symbol, signal_label, confidence, signal_age)
 
     return SignalResult(
         symbol=symbol,
@@ -167,4 +187,7 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
         reasons=all_reasons,
         indicator_scores=score_result["scores"],
         df=df,
+        signal_age_days=signal_age,
+        recommended_horizon=horizon,
     )
+

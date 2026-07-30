@@ -286,6 +286,54 @@ html, body, [class*="css"] {
 ::-webkit-scrollbar-track { background: #080b10; }
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
+
+/* ── Mobile & Responsive UI Media Queries ── */
+@media (max-width: 768px) {
+    .hero-header {
+        padding: 16px 14px !important;
+        margin-bottom: 16px !important;
+        border-radius: 14px !important;
+    }
+    .hero-header h1 {
+        font-size: 20px !important;
+    }
+    .hero-signal-card {
+        padding: 20px 14px !important;
+        border-radius: 14px !important;
+    }
+    .hero-signal-card div[style*="font-size:42px"] {
+        font-size: 26px !important;
+    }
+    .hero-signal-card div[style*="width:65%"] {
+        width: 92% !important;
+    }
+    .metric-card {
+        padding: 12px 10px !important;
+        margin-bottom: 8px !important;
+    }
+    .metric-value {
+        font-size: 16px !important;
+    }
+    .metric-label {
+        font-size: 10px !important;
+    }
+    /* Horizontally scrollable tabs on mobile screens */
+    .stTabs [data-baseweb="tab-list"] {
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+        gap: 6px !important;
+        padding: 4px !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 8px 14px !important;
+        font-size: 12px !important;
+    }
+    [data-testid="column"] {
+        min-width: 48% !important;
+        flex: 1 1 45% !important;
+    }
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -438,9 +486,51 @@ with st.sidebar:
 # HELPER: Load & Analyse
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _find_better_alternatives(current_symbol: str, current_confidence: float) -> list[dict]:
+    """Scan top benchmark stocks for higher confidence / stronger signals."""
+    peer_pool = [
+        {"symbol": "TCS.NS", "name": "Tata Consultancy Services"},
+        {"symbol": "INFY.NS", "name": "Infosys Ltd"},
+        {"symbol": "HDFCBANK.NS", "name": "HDFC Bank Ltd"},
+        {"symbol": "ICICIBANK.NS", "name": "ICICI Bank Ltd"},
+        {"symbol": "TATAMOTORS.NS", "name": "Tata Motors Ltd"},
+        {"symbol": "BHARTIARTL.NS", "name": "Bharti Airtel Ltd"},
+        {"symbol": "RELIANCE.NS", "name": "Reliance Industries"},
+        {"symbol": "LT.NS", "name": "Larsen & Toubro"},
+    ]
+    better_list = []
+    for item in peer_pool:
+        sym = item["symbol"]
+        if sym == current_symbol:
+            continue
+        try:
+            raw = fetch_ohlcv(sym, period="1y", interval="1d")
+            if raw.empty or len(raw) < 60:
+                continue
+            d = compute_all_indicators(raw)
+            res = generate_signal(sym, d)
+            if res.confidence > current_confidence or (res.signal in ("Strong Buy", "Buy") and res.confidence >= 65):
+                last_p = d["Close"].iloc[-1]
+                prev_p = d["Close"].iloc[-2] if len(d) > 1 else last_p
+                chg = pct_change(float(prev_p), float(last_p))
+                better_list.append({
+                    "symbol": sym,
+                    "name": item["name"],
+                    "signal": res.signal,
+                    "confidence": res.confidence,
+                    "price": last_p,
+                    "change": chg,
+                    "rr": res.risk_reward,
+                })
+        except Exception:
+            continue
+    better_list.sort(key=lambda x: x["confidence"], reverse=True)
+    return better_list[:3]
+
+
 def load_and_analyse(symbol: str) -> None:
     """Fetch data and run full signal analysis, store in session state."""
-    with st.spinner(f"Fetching {symbol}…"):
+    with st.spinner(f"Fetching & Analysing {symbol}…"):
         try:
             if use_custom_dates:
                 df_raw = fetch_ohlcv(symbol, interval=interval, start=start_dt, end=end_dt)
@@ -450,6 +540,9 @@ def load_and_analyse(symbol: str) -> None:
             df = compute_all_indicators(df_raw)
             result = generate_signal(symbol, df)
             risk = calculate_risk(df, result.signal, capital=capital, risk_per_trade=risk_pct / 100)
+
+            # Find better alternatives
+            alternatives = _find_better_alternatives(symbol, result.confidence)
 
             # Persist signal
             save_signal(
@@ -466,12 +559,14 @@ def load_and_analyse(symbol: str) -> None:
             st.session_state.df = df
             st.session_state.signal_result = result
             st.session_state.risk = risk
+            st.session_state.better_alternatives = alternatives
             st.session_state.selected_symbol = symbol
             st.session_state.last_refresh = time.time()
             logger.info("Analysis complete for %s: %s", symbol, result.signal)
         except Exception as exc:
             st.error(f"❌ Error loading {symbol}: {exc}")
             logger.exception("load_and_analyse failed for %s", symbol)
+
 
 
 # Auto-refresh logic
@@ -614,9 +709,10 @@ with tab_signal:
         st.markdown(
             f"""
             <div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
-                <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:14px;">
+                <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:14px; flex-wrap:wrap; justify-content:center;">
                     <span style="font-size:18px;">{sig_emoji}</span>
                     <span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
+                    <span class="mono-font" style="font-size:12px; font-weight:700; color:#58a6ff; background:rgba(88,166,255,0.12); padding:3px 10px; border-radius:12px; border:1px solid rgba(88,166,255,0.25);">⏳ Signal Active: {result.signal_age_days} Days</span>
                 </div>
                 <div style="font-size:42px; font-weight:800; color:{sig_color}; text-shadow:0 0 35px {sig_color}88; margin-bottom:10px; letter-spacing:-0.02em;">
                     {result.signal}
@@ -642,14 +738,16 @@ with tab_signal:
         )
 
         # ── Key Metrics Row ──────────────────────────────────────────────────
-        m1, m2, m3, m4, m5 = st.columns(5)
+        m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
 
         metrics = [
             (m1, "Entry Price", f"₹{risk.entry_price:,.2f}", "#58a6ff"),
             (m2, "Stop Loss", f"₹{risk.stop_loss:,.2f}", "#ff1744"),
             (m3, "Take Profit", f"₹{risk.take_profit:,.2f}", "#00e676"),
             (m4, "Risk:Reward", f"1:{risk.risk_reward:.1f}", "#ffb300"),
-            (m5, "Max Position", f"{risk.max_position_size:,} shares", "#79c0ff"),
+            (m5, "Active Days", f"{result.signal_age_days} Days", "#00e5ff"),
+            (m6, "Horizon", f"{result.recommended_horizon}", "#ba68c8"),
+            (m7, "Max Position", f"{risk.max_position_size:,} shares", "#79c0ff"),
         ]
 
         for col, label, value, color in metrics:
@@ -780,6 +878,45 @@ with tab_signal:
             )
 
         st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Better Stock Alternatives ──────────────────────────────────────────
+        if "better_alternatives" in st.session_state and st.session_state.better_alternatives:
+            st.markdown('<div class="section-header">🌟 Better Stock Alternatives (Higher Confidence & Stronger Signals)</div>', unsafe_allow_html=True)
+            alt_cols = st.columns(len(st.session_state.better_alternatives))
+            for idx, (col, alt) in enumerate(zip(alt_cols, st.session_state.better_alternatives)):
+                alt_sig_color = SIGNAL_COLORS.get(alt["signal"], "#58a6ff")
+                with col:
+                    st.markdown(
+                        f"""
+                        <div class="metric-card" style="border-top: 3px solid {alt_sig_color}; text-align:left; padding:16px; margin-bottom:10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <span class="mono-font" style="font-size:14px; font-weight:700; color:#f0f6fc;">{alt['symbol']}</span>
+                                <span style="font-size:11px; font-weight:700; color:{alt_sig_color}; background:{alt_sig_color}22; padding:2px 8px; border-radius:10px; border:1px solid {alt_sig_color}44;">{alt['signal']}</span>
+                            </div>
+                            <div style="font-size:11px; color:#8b949e; margin-bottom:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{alt['name']}</div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+                                <span style="color:#8b949e;">Confidence:</span>
+                                <span class="mono-font" style="color:{alt_sig_color}; font-weight:700;">{alt['confidence']:.1f}%</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+                                <span style="color:#8b949e;">Price:</span>
+                                <span class="mono-font" style="color:#f0f6fc; font-weight:700;">₹{alt['price']:,.2f}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:12px;">
+                                <span style="color:#8b949e;">Risk:Reward:</span>
+                                <span class="mono-font" style="color:#00e676; font-weight:700;">1:{alt['rr']:.1f}</span>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    if st.button(f"⚡ Analyze {alt['symbol'].replace('.NS','')}", key=f"btn_alt_{alt['symbol']}_{idx}", use_container_width=True):
+                        st.session_state.selected_symbol = alt["symbol"]
+                        load_and_analyse(alt["symbol"])
+                        st.rerun()
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
 
         # ── Watchlist + Alert buttons ────────────────────────────────────────
         btn_c1, btn_c2, btn_c3 = st.columns(3)
