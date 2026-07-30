@@ -1,0 +1,188 @@
+"""
+data/fetch_data.py
+==================
+Fetches OHLCV data from Yahoo Finance with retry logic, caching,
+and symbol normalisation for Indian exchanges (NSE/BSE).
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from datetime import datetime, timedelta
+from typing import Optional
+
+import pandas as pd
+import yfinance as yf
+
+from data.cache import DataCache
+
+logger = logging.getLogger(__name__)
+
+_cache = DataCache()
+
+
+def normalise_symbol(symbol: str, exchange: str = "NSE") -> str:
+    """
+    Ensure the symbol has the correct Yahoo Finance suffix.
+
+    Args:
+        symbol: Raw stock symbol e.g. 'RELIANCE' or 'RELIANCE.NS'
+        exchange: 'NSE' or 'BSE'
+
+    Returns:
+        Yahoo Finance formatted symbol e.g. 'RELIANCE.NS'
+    """
+    suffix_map = {"NSE": ".NS", "BSE": ".BO"}
+    suffix = suffix_map.get(exchange.upper(), ".NS")
+
+    symbol = symbol.upper().strip()
+    if "." not in symbol:
+        symbol = f"{symbol}{suffix}"
+    return symbol
+
+
+def fetch_ohlcv(
+    symbol: str,
+    interval: str = "1d",
+    period: str = "1y",
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    retries: int = 3,
+    backoff: float = 1.5,
+) -> pd.DataFrame:
+    """
+    Fetch OHLCV data for a given symbol from Yahoo Finance.
+
+    Args:
+        symbol:   Yahoo Finance symbol (e.g. 'RELIANCE.NS').
+        interval: Data interval ('1d', '1wk', '1h', '15m', etc.)
+        period:   Lookback period string ('1y', '6mo', '3mo') — used when
+                  start/end are not provided.
+        start:    Start datetime (optional).
+        end:      End datetime (optional).
+        retries:  Number of retry attempts on transient failure.
+        backoff:  Exponential backoff multiplier.
+
+    Returns:
+        DataFrame with columns [Open, High, Low, Close, Volume] indexed by
+        datetime, sorted ascending.
+
+    Raises:
+        ValueError: If the returned data is empty.
+    """
+    cache_key = f"{symbol}_{interval}_{period}_{start}_{end}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        logger.debug("Cache HIT for %s", cache_key)
+        return cached
+
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, retries + 1):
+        try:
+            logger.info(
+                "Fetching %s | interval=%s | attempt=%d", symbol, interval, attempt
+            )
+            ticker = yf.Ticker(symbol)
+
+            if start and end:
+                df = ticker.history(
+                    interval=interval,
+                    start=start.strftime("%Y-%m-%d"),
+                    end=end.strftime("%Y-%m-%d"),
+                    auto_adjust=True,
+                )
+            else:
+                df = ticker.history(
+                    interval=interval,
+                    period=period,
+                    auto_adjust=True,
+                )
+
+            if df.empty:
+                raise ValueError(
+                    f"No data returned for symbol '{symbol}'. "
+                    "Check the symbol or try a different timeframe."
+                )
+
+            # Standardise column names
+            df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+            df.index = pd.to_datetime(df.index)
+            if df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+            df.sort_index(inplace=True)
+            df.dropna(subset=["Close"], inplace=True)
+
+            _cache.set(cache_key, df)
+            logger.info("Fetched %d rows for %s", len(df), symbol)
+            return df
+
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            wait = backoff ** attempt
+            logger.warning(
+                "Attempt %d failed for %s: %s. Retrying in %.1fs…",
+                attempt,
+                symbol,
+                exc,
+                wait,
+            )
+            time.sleep(wait)
+
+    raise RuntimeError(
+        f"Failed to fetch data for '{symbol}' after {retries} attempts."
+    ) from last_exc
+
+
+def fetch_multiple_stocks(
+    symbols: list[str],
+    interval: str = "1d",
+    period: str = "6mo",
+) -> dict[str, pd.DataFrame]:
+    """
+    Fetch OHLCV data for multiple symbols (used in scanner).
+
+    Args:
+        symbols: List of Yahoo Finance symbols.
+        interval: Data interval.
+        period: Lookback period.
+
+    Returns:
+        Dict mapping symbol → DataFrame (may be empty on failure).
+    """
+    results: dict[str, pd.DataFrame] = {}
+    for sym in symbols:
+        try:
+            results[sym] = fetch_ohlcv(sym, interval=interval, period=period)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Skipping %s: %s", sym, exc)
+            results[sym] = pd.DataFrame()
+    return results
+
+
+def get_company_info(symbol: str) -> dict:
+    """
+    Return basic company metadata from Yahoo Finance.
+
+    Args:
+        symbol: Yahoo Finance symbol.
+
+    Returns:
+        Dict with keys: name, sector, industry, marketCap, pe, eps.
+    """
+    try:
+        info = yf.Ticker(symbol).info
+        return {
+            "name": info.get("longName", symbol),
+            "sector": info.get("sector", "N/A"),
+            "industry": info.get("industry", "N/A"),
+            "marketCap": info.get("marketCap", 0),
+            "pe": info.get("trailingPE", None),
+            "eps": info.get("trailingEps", None),
+            "52wHigh": info.get("fiftyTwoWeekHigh", None),
+            "52wLow": info.get("fiftyTwoWeekLow", None),
+            "beta": info.get("beta", None),
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not fetch info for %s: %s", symbol, exc)
+        return {}

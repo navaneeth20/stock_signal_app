@@ -1,0 +1,164 @@
+"""
+database/database.py
+====================
+SQLite database layer for watchlist management and signal history.
+"""
+
+from __future__ import annotations
+
+import logging
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from config import DB_PATH
+
+logger = logging.getLogger(__name__)
+
+
+def _get_conn() -> sqlite3.Connection:
+    """Return a SQLite connection with row_factory set."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def initialise_db() -> None:
+    """Create all required tables if they don't exist."""
+    with _get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol      TEXT NOT NULL UNIQUE,
+                name        TEXT,
+                exchange    TEXT DEFAULT 'NSE',
+                added_at    TEXT DEFAULT (datetime('now')),
+                notes       TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS signal_history (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol      TEXT NOT NULL,
+                signal      TEXT NOT NULL,
+                confidence  REAL,
+                entry_price REAL,
+                stop_loss   REAL,
+                take_profit REAL,
+                risk_reward REAL,
+                interval    TEXT,
+                generated_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_signal_symbol
+                ON signal_history (symbol, generated_at DESC);
+            """
+        )
+    logger.info("Database initialised at %s", DB_PATH)
+
+
+# ── Watchlist ──────────────────────────────────────────────────────────────────
+
+def add_to_watchlist(symbol: str, name: str = "", exchange: str = "NSE") -> bool:
+    """Add a stock to the watchlist. Returns True on success."""
+    try:
+        with _get_conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO watchlist (symbol, name, exchange) VALUES (?,?,?)",
+                (symbol.upper(), name, exchange),
+            )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.error("add_to_watchlist error: %s", exc)
+        return False
+
+
+def remove_from_watchlist(symbol: str) -> bool:
+    """Remove a stock from the watchlist."""
+    try:
+        with _get_conn() as conn:
+            conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol.upper(),))
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.error("remove_from_watchlist error: %s", exc)
+        return False
+
+
+def get_watchlist() -> list[dict]:
+    """Return all watchlist entries as a list of dicts."""
+    try:
+        with _get_conn() as conn:
+            rows = conn.execute(
+                "SELECT symbol, name, exchange, added_at FROM watchlist ORDER BY added_at DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_watchlist error: %s", exc)
+        return []
+
+
+def is_in_watchlist(symbol: str) -> bool:
+    """Check if a symbol is in the watchlist."""
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM watchlist WHERE symbol = ?", (symbol.upper(),)
+        ).fetchone()
+    return row is not None
+
+
+# ── Signal History ─────────────────────────────────────────────────────────────
+
+def save_signal(
+    symbol: str,
+    signal: str,
+    confidence: float,
+    entry_price: float,
+    stop_loss: float,
+    take_profit: float,
+    risk_reward: float,
+    interval: str = "1d",
+) -> None:
+    """Persist a generated signal to the database."""
+    try:
+        with _get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO signal_history
+                (symbol, signal, confidence, entry_price, stop_loss, take_profit, risk_reward, interval)
+                VALUES (?,?,?,?,?,?,?,?)
+                """,
+                (symbol, signal, confidence, entry_price, stop_loss, take_profit, risk_reward, interval),
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("save_signal error: %s", exc)
+
+
+def get_recent_signals(symbol: Optional[str] = None, limit: int = 50) -> list[dict]:
+    """
+    Retrieve recent signals from history.
+
+    Args:
+        symbol: Optional filter by symbol.
+        limit:  Maximum number of rows.
+
+    Returns:
+        List of signal dicts.
+    """
+    try:
+        with _get_conn() as conn:
+            if symbol:
+                rows = conn.execute(
+                    "SELECT * FROM signal_history WHERE symbol=? ORDER BY generated_at DESC LIMIT ?",
+                    (symbol.upper(), limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM signal_history ORDER BY generated_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_recent_signals error: %s", exc)
+        return []
