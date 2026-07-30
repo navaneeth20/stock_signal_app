@@ -324,21 +324,22 @@ def build_price_chart(
     fig.update_layout(
         height=height,
         template="plotly_dark",
-        paper_bgcolor="rgba(13,17,23,1)",
-        plot_bgcolor="rgba(13,17,23,1)",
-        font=dict(family="Inter, sans-serif", size=12, color="#e0e0e0"),
+        paper_bgcolor="rgba(9,12,16,0.95)",
+        plot_bgcolor="rgba(13,17,23,0.95)",
+        font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=12, color="#c9d1d9"),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.01,
             xanchor="left",
             x=0,
-            bgcolor="rgba(0,0,0,0.3)",
-            bordercolor="rgba(255,255,255,0.1)",
+            bgcolor="rgba(22,27,34,0.8)",
+            bordercolor="rgba(88,166,255,0.2)",
             borderwidth=1,
+            font=dict(size=11, color="#8b949e"),
         ),
         xaxis_rangeslider_visible=False,
-        margin=dict(l=10, r=10, t=40, b=10),
+        margin=dict(l=15, r=15, t=40, b=15),
         hovermode="x unified",
     )
 
@@ -348,14 +349,14 @@ def build_price_chart(
             row=i,
             col=1,
             showgrid=True,
-            gridcolor="rgba(255,255,255,0.05)",
+            gridcolor="rgba(255,255,255,0.06)",
             zeroline=False,
         )
         fig.update_yaxes(
             row=i,
             col=1,
             showgrid=True,
-            gridcolor="rgba(255,255,255,0.05)",
+            gridcolor="rgba(255,255,255,0.06)",
             zeroline=False,
             tickformat=".2f" if i == 1 else None,
         )

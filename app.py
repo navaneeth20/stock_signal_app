@@ -85,141 +85,212 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* ── Base ── */
+/* ── Global Theme & Background ── */
 html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 .stApp {
-    background: #0d1117;
+    background: radial-gradient(circle at 50% 0%, #151d2a 0%, #090c10 70%, #05070a 100%);
     color: #e6edf3;
 }
 
-/* ── Metric cards ── */
+/* ── Typography & Ticker Fonts ── */
+.mono-font {
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* ── Hero Terminal Header Banner ── */
+.hero-header {
+    background: linear-gradient(135deg, rgba(22, 27, 34, 0.75) 0%, rgba(13, 17, 23, 0.9) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(88, 166, 255, 0.18);
+    border-radius: 18px;
+    padding: 24px 30px;
+    margin-bottom: 28px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+.hero-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #00f2fe, #4facfe, #00e676, #00f2fe);
+    background-size: 300% 100%;
+    animation: gradientShift 6s ease infinite;
+}
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 230, 118, 0.1);
+    border: 1px solid rgba(0, 230, 118, 0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #00e676;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.pulsing-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #00e676;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00e676;
+    animation: pulse 1.8s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(0, 230, 118, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+}
+
+/* ── Metric Glass Cards ── */
 .metric-card {
-    background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 16px 20px;
+    background: linear-gradient(135deg, rgba(22, 27, 34, 0.65) 0%, rgba(13, 17, 23, 0.75) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 18px 20px;
     text-align: center;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 .metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    transform: translateY(-4px);
+    border-color: rgba(88, 166, 255, 0.4);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(88, 166, 255, 0.15);
 }
 .metric-label {
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 600;
     color: #8b949e;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 6px;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
 }
 .metric-value {
+    font-family: 'JetBrains Mono', monospace;
     font-size: 22px;
     font-weight: 700;
-    color: #e6edf3;
-}
-.metric-delta {
-    font-size: 12px;
-    margin-top: 4px;
+    color: #f0f6fc;
 }
 
-/* ── Signal badge ── */
-.signal-badge {
-    display: inline-block;
-    padding: 6px 18px;
+/* ── Signal Hero Card ── */
+.hero-signal-card {
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(9, 14, 23, 0.95) 100%);
+    backdrop-filter: blur(16px);
     border-radius: 20px;
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 0.05em;
+    padding: 32px;
+    margin-bottom: 28px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    position: relative;
 }
 
 /* ── Section headers ── */
 .section-header {
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 700;
     color: #58a6ff;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(88,166,255,0.2);
+    letter-spacing: 0.04em;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(88, 166, 255, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-/* ── Reason card ── */
-.reason-card {
-    background: rgba(22,27,34,0.8);
-    border-left: 3px solid #58a6ff;
-    border-radius: 0 8px 8px 0;
-    padding: 8px 12px;
-    margin: 4px 0;
-    font-size: 13px;
-    color: #c9d1d9;
-}
-
-/* ── AI explanation box ── */
+/* ── AI Explanation Box ── */
 .ai-box {
-    background: linear-gradient(135deg, #0d2137 0%, #1a2a4a 100%);
-    border: 1px solid rgba(88,166,255,0.3);
-    border-radius: 12px;
-    padding: 20px;
-    font-size: 14px;
-    line-height: 1.7;
+    background: linear-gradient(135deg, rgba(13, 33, 55, 0.7) 0%, rgba(10, 22, 40, 0.85) 100%);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(88, 166, 255, 0.25);
+    border-radius: 16px;
+    padding: 24px;
+    font-size: 14.5px;
+    line-height: 1.75;
     color: #c9d1d9;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Sidebar styling ── */
 [data-testid="stSidebar"] {
-    background: #161b22;
-    border-right: 1px solid rgba(255,255,255,0.06);
+    background: rgba(13, 17, 23, 0.95) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
-/* ── Progress bar ── */
-.stProgress > div > div {
-    background: linear-gradient(90deg, #00e676, #69f0ae) !important;
-}
-
-/* ── Table styling ── */
-.stDataFrame {
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-/* ── Tab styling ── */
+/* ── Modern Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    background: transparent;
+    gap: 10px;
+    background: rgba(13, 17, 23, 0.6);
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 24px;
 }
 .stTabs [data-baseweb="tab"] {
-    background: rgba(22,27,34,0.8);
-    border-radius: 8px;
-    padding: 8px 20px;
-    font-weight: 500;
-    border: 1px solid rgba(255,255,255,0.06);
+    background: transparent;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #8b949e;
+    border: none !important;
+    transition: all 0.2s ease;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #e6edf3;
+    background: rgba(255, 255, 255, 0.05);
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #1f6feb, #58a6ff) !important;
-    border-color: #58a6ff !important;
+    background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 16px rgba(31, 111, 235, 0.4) !important;
 }
 
-/* ── Input fields ── */
-.stSelectbox > div > div,
-.stTextInput > div > div {
-    background: #161b22 !important;
-    border-color: rgba(255,255,255,0.1) !important;
-    border-radius: 8px !important;
+/* ── Buttons ── */
+.stButton > button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    padding: 10px 24px !important;
+    transition: all 0.25s ease !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important;
+    border-color: #3fb950 !important;
+    box-shadow: 0 6px 20px rgba(46, 160, 67, 0.3) !important;
+}
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 10px 28px rgba(46, 160, 67, 0.5) !important;
 }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #0d1117; }
-::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #080b10; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
 </style>
 """,
     unsafe_allow_html=True,
 )
+
 
 # ── Session state init ────────────────────────────────────────────────────────
 def _init_session() -> None:
@@ -246,11 +317,11 @@ with st.sidebar:
     # Logo + title
     st.markdown(
         f"""
-        <div style="text-align:center;padding:16px 0 24px;">
-            <div style="font-size:40px;margin-bottom:8px;">📈</div>
-            <div style="font-size:20px;font-weight:700;color:#58a6ff;">{APP_NAME}</div>
-            <div style="font-size:11px;color:#8b949e;margin-top:4px;">{APP_TAGLINE}</div>
-            <div style="font-size:10px;color:#444;margin-top:2px;">v{APP_VERSION}</div>
+        <div style="background:linear-gradient(135deg, rgba(31,111,235,0.15), rgba(88,166,255,0.05)); border:1px solid rgba(88,166,255,0.2); border-radius:16px; padding:20px 16px; text-align:center; margin-bottom:20px; box-shadow:0 8px 24px rgba(0,0,0,0.3);">
+            <div style="background:linear-gradient(135deg,#1f6feb,#58a6ff); width:48px; height:48px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; font-size:24px; box-shadow:0 6px 20px rgba(31,111,235,0.4); margin-bottom:10px;">📈</div>
+            <div style="font-size:18px; font-weight:800; color:#f0f6fc; letter-spacing:0.02em;">{APP_NAME}</div>
+            <div style="font-size:11px; font-weight:500; color:#8b949e; margin-top:4px;">{APP_TAGLINE}</div>
+            <div class="mono-font" style="display:inline-block; font-size:10px; font-weight:600; color:#58a6ff; background:rgba(88,166,255,0.1); padding:2px 8px; border-radius:10px; margin-top:8px;">v{APP_VERSION} PRO</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -419,20 +490,27 @@ if load_clicked:
 
 st.markdown(
     f"""
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
-        <div style="font-size:32px;">📈</div>
-        <div>
-            <h1 style="margin:0;font-size:26px;font-weight:700;
-                background:linear-gradient(90deg,#58a6ff,#79c0ff);
-                -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-                {APP_NAME}
-            </h1>
-            <p style="margin:0;color:#8b949e;font-size:13px;">{APP_TAGLINE}</p>
+    <div class="hero-header">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div style="display:flex; align-items:center; gap:18px;">
+                <div style="background:linear-gradient(135deg,#1f6feb,#58a6ff); width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow:0 8px 24px rgba(31,111,235,0.4);">📈</div>
+                <div>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <h1 style="margin:0; font-size:28px; font-weight:800; background:linear-gradient(90deg,#58a6ff,#00e5ff,#79c0ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:-0.02em;">{APP_NAME} <span style="font-size:13px; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(88,166,255,0.12); color:#58a6ff; border:1px solid rgba(88,166,255,0.25); -webkit-text-fill-color:initial;">PRO TERMINAL</span></h1>
+                    </div>
+                    <p style="margin:4px 0 0; color:#8b949e; font-size:13.5px; font-weight:500;">{APP_TAGLINE}</p>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:14px;">
+                <div class="live-indicator"><span class="pulsing-dot"></span> LIVE NSE / BSE</div>
+                <div class="mono-font" style="font-size:12px; color:#8b949e; background:rgba(255,255,255,0.04); padding:6px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.06);">v{APP_VERSION}</div>
+            </div>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HELPER — AI Explanation
@@ -535,34 +613,27 @@ with tab_signal:
         # ── Top Signal Card ─────────────────────────────────────────────────
         st.markdown(
             f"""
-            <div style="background:linear-gradient(135deg,#161b22,#1c2333);
-                        border:1px solid {sig_color}44;border-radius:16px;
-                        padding:28px;margin-bottom:24px;text-align:center;">
-                <div style="font-size:48px;margin-bottom:12px;">{sig_emoji}</div>
-                <div style="font-size:13px;color:#8b949e;font-weight:500;
-                            text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">
-                    {result.symbol}
+            <div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
+                <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:14px;">
+                    <span style="font-size:18px;">{sig_emoji}</span>
+                    <span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
                 </div>
-                <div style="font-size:36px;font-weight:800;color:{sig_color};
-                            text-shadow:0 0 30px {sig_color}66;margin-bottom:8px;">
+                <div style="font-size:42px; font-weight:800; color:{sig_color}; text-shadow:0 0 35px {sig_color}88; margin-bottom:10px; letter-spacing:-0.02em;">
                     {result.signal}
                 </div>
-                <div style="font-size:18px;color:#e6edf3;margin-bottom:16px;">
+                <div class="mono-font" style="font-size:22px; color:#f0f6fc; font-weight:700; margin-bottom:20px;">
                     ₹{last['Close']:,.2f}
-                    <span style="font-size:14px;color:{'#00e676' if price_change >= 0 else '#f44336'}">
+                    <span style="font-size:15px; font-weight:600; padding:3px 10px; border-radius:8px; margin-left:8px; background:{'rgba(0,230,118,0.15)' if price_change >= 0 else 'rgba(255,23,68,0.15)'}; color:{'#00e676' if price_change >= 0 else '#ff1744'}; border:1px solid {'rgba(0,230,118,0.3)' if price_change >= 0 else 'rgba(255,23,68,0.3)'}">
                         {'▲' if price_change >= 0 else '▼'} {abs(price_change):.2f}%
                     </span>
                 </div>
-                <div style="font-size:13px;color:#8b949e;margin-bottom:12px;">
-                    Confidence Score
+                <div style="font-size:12px; font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;">
+                    Signal Confidence Score
                 </div>
-                <div style="background:rgba(0,0,0,0.3);border-radius:8px;
-                            height:8px;width:60%;margin:0 auto 12px;">
-                    <div style="background:{sig_color};height:8px;border-radius:8px;
-                                width:{result.confidence}%;transition:width 0.5s ease;">
-                    </div>
+                <div style="background:rgba(0,0,0,0.4); border-radius:10px; height:10px; width:65%; margin:0 auto 14px; padding:2px; border:1px solid rgba(255,255,255,0.06);">
+                    <div style="background:linear-gradient(90deg, {sig_color}bb, {sig_color}); height:100%; border-radius:8px; width:{result.confidence}%; box-shadow:0 0 12px {sig_color}aa;"></div>
                 </div>
-                <div style="font-size:28px;font-weight:700;color:{sig_color};">
+                <div class="mono-font" style="font-size:30px; font-weight:800; color:{sig_color}; text-shadow:0 0 20px {sig_color}66;">
                     {result.confidence:.1f}%
                 </div>
             </div>
@@ -574,23 +645,24 @@ with tab_signal:
         m1, m2, m3, m4, m5 = st.columns(5)
 
         metrics = [
-            (m1, "Entry Price", f"₹{risk.entry_price:,.2f}", None),
-            (m2, "Stop Loss", f"₹{risk.stop_loss:,.2f}", "🔴"),
-            (m3, "Take Profit", f"₹{risk.take_profit:,.2f}", "🟢"),
-            (m4, "Risk:Reward", f"1:{risk.risk_reward:.1f}", None),
-            (m5, "Max Qty", f"{risk.max_position_size:,} shares", None),
+            (m1, "Entry Price", f"₹{risk.entry_price:,.2f}", "#58a6ff"),
+            (m2, "Stop Loss", f"₹{risk.stop_loss:,.2f}", "#ff1744"),
+            (m3, "Take Profit", f"₹{risk.take_profit:,.2f}", "#00e676"),
+            (m4, "Risk:Reward", f"1:{risk.risk_reward:.1f}", "#ffb300"),
+            (m5, "Max Position", f"{risk.max_position_size:,} shares", "#79c0ff"),
         ]
 
-        for col, label, value, icon in metrics:
+        for col, label, value, color in metrics:
             col.markdown(
                 f"""
-                <div class="metric-card">
+                <div class="metric-card" style="border-top: 3px solid {color};">
                     <div class="metric-label">{label}</div>
-                    <div class="metric-value">{value}</div>
+                    <div class="metric-value" style="color:{color};">{value}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
 
         st.markdown("<br>", unsafe_allow_html=True)
 
