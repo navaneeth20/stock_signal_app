@@ -48,6 +48,7 @@ from alerts.telegram import format_signal_message, send_telegram_alert
 from backtesting.backtest import run_backtest
 from charts.candlestick import build_equity_curve, build_price_chart
 from data.fetch_data import fetch_ohlcv, get_company_info, normalise_symbol
+from data.news_sentiment import fetch_news_sentiment
 from database.database import (
     add_to_watchlist,
     get_recent_signals,
@@ -57,9 +58,12 @@ from database.database import (
     remove_from_watchlist,
     save_signal,
 )
+from indicators.mtf import compute_mtf_alignment
 from strategies.risk import calculate_risk
 from strategies.signal_engine import compute_all_indicators, generate_signal
 from utils.helpers import color_for_signal, format_inr, format_volume, pct_change
+from utils.quant_risk import run_monte_carlo_simulation
+
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -541,6 +545,22 @@ def load_and_analyse(symbol: str) -> None:
             result = generate_signal(symbol, df)
             risk = calculate_risk(df, result.signal, capital=capital, risk_per_trade=risk_pct / 100)
 
+            # 1. Multi-Timeframe (MTF) Alignment Analysis
+            mtf_res = compute_mtf_alignment(symbol)
+            result.mtf_result = mtf_res
+            # Apply MTF confidence modifier
+            result.confidence = max(0.0, min(100.0, result.confidence + mtf_res.confidence_modifier))
+
+            # 2. Market Sentiment & News Intelligence
+            comp_info = get_company_info(symbol)
+            comp_name = comp_info.get("shortName", symbol.replace(".NS", ""))
+            news_res = fetch_news_sentiment(symbol, comp_name)
+            result.news_result = news_res
+
+            # 3. Quantitative Risk & Monte Carlo Simulation
+            mc_res = run_monte_carlo_simulation(df, risk.entry_price, risk.stop_loss, risk.take_profit)
+            result.mc_result = mc_res
+
             # Find better alternatives
             alternatives = _find_better_alternatives(symbol, result.confidence)
 
@@ -562,7 +582,8 @@ def load_and_analyse(symbol: str) -> None:
             st.session_state.better_alternatives = alternatives
             st.session_state.selected_symbol = symbol
             st.session_state.last_refresh = time.time()
-            logger.info("Analysis complete for %s: %s", symbol, result.signal)
+            logger.info("Analysis complete for %s: %s (MTF: %s)", symbol, result.signal, mtf_res.alignment_status)
+
         except Exception as exc:
             st.error(f"❌ Error loading {symbol}: {exc}")
             logger.exception("load_and_analyse failed for %s", symbol)
@@ -764,6 +785,42 @@ with tab_signal:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # ── MTF Alignment Matrix Card ──────────────────────────────────────
+        if hasattr(result, "mtf_result") and result.mtf_result:
+            mtf = result.mtf_result
+            st.markdown('<div class="section-header">⏱️ Multi-Timeframe (MTF) Alignment Matrix</div>', unsafe_allow_html=True)
+            tf_cols = st.columns(3)
+            tf_data = [
+                (tf_cols[0], "1W Macro Trend", mtf.trends.get("1W")),
+                (tf_cols[1], "1D Setup Trend", mtf.trends.get("1D")),
+                (tf_cols[2], "1H Micro Entry", mtf.trends.get("1H")),
+            ]
+            for col, title, item in tf_data:
+                if item:
+                    color = "#00e676" if item.trend == "Bullish" else "#ff1744" if item.trend == "Bearish" else "#8b949e"
+                    col.markdown(
+                        f"""
+                        <div class="metric-card" style="border-top: 3px solid {color}; text-align:center;">
+                            <div class="metric-label">{title}</div>
+                            <div class="mono-font" style="font-size:18px; font-weight:700; color:{color}; margin-top:4px;">
+                                {item.trend.upper()}
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+            st.markdown(
+                f"""
+                <div style="background:rgba(22,27,34,0.6); border:1px solid rgba(88,166,255,0.2); border-radius:12px; padding:12px 18px; margin-top:12px; font-size:13px; color:#c9d1d9; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div><strong>Confluence Status:</strong> <span style="color:#58a6ff; font-weight:700;">{mtf.alignment_status}</span></div>
+                    <div style="color:#8b949e;">{mtf.description}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         # ── Two columns: Indicator scores + Analysis ──────────────────────
         col_l, col_r = st.columns([1, 1.4])
 
@@ -847,6 +904,27 @@ with tab_signal:
                 unsafe_allow_html=True,
             )
 
+            # News Sentiment Section
+            if hasattr(result, "news_result") and result.news_result:
+                news = result.news_result
+                s_color = "#00e676" if "Bullish" in news.sentiment_label else "#ff1744" if "Bearish" in news.sentiment_label else "#ffb300"
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown(f'<div class="section-header">📰 News Sentiment Intelligence (<span style="color:{s_color}">{news.sentiment_label}</span>)</div>', unsafe_allow_html=True)
+                for art in news.articles[:3]:
+                    art_color = "#00e676" if art.sentiment_label == "Bullish" else "#ff1744" if art.sentiment_label == "Bearish" else "#8b949e"
+                    st.markdown(
+                        f"""
+                        <div class="reason-card" style="border-left-color:{art_color}; font-size:12.5px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                                <a href="{art.link}" target="_blank" style="color:#e6edf3; text-decoration:none; font-weight:600;">{art.title[:75]}…</a>
+                                <span style="color:{art_color}; font-weight:700; font-size:10px; padding:1px 6px; border-radius:6px; background:{art_color}22;">{art.sentiment_label}</span>
+                            </div>
+                            <div style="font-size:10px; color:#8b949e;">{art.published}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown('<div class="section-header">📋 Signal Reasons</div>', unsafe_allow_html=True)
             for reason in result.reasons[:10]:
@@ -857,8 +935,8 @@ with tab_signal:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # ── Risk Card ────────────────────────────────────────────────────────
-        st.markdown('<div class="section-header">🛡️ Risk Management</div>', unsafe_allow_html=True)
+        # ── Risk Card & Monte Carlo Simulation ───────────────────────────────
+        st.markdown('<div class="section-header">🛡️ Risk & Monte Carlo Quantitative Simulation (1,000 Iterations)</div>', unsafe_allow_html=True)
         rc1, rc2, rc3, rc4 = st.columns(4)
         risk_metrics = [
             (rc1, "Capital Allocation", format_inr(risk.capital_allocation)),
@@ -877,7 +955,30 @@ with tab_signal:
                 unsafe_allow_html=True,
             )
 
+        if hasattr(result, "mc_result") and result.mc_result:
+            mc = result.mc_result
+            st.markdown("<br>", unsafe_allow_html=True)
+            mc1, mc2, mc3, mc4 = st.columns(4)
+            mc_color = "#00e676" if mc.win_probability >= 55 else "#ff1744" if mc.win_probability <= 45 else "#ffb300"
+            mc_items = [
+                (mc1, "Win Probability (PoP)", f"{mc.win_probability:.1f}%", mc_color),
+                (mc2, "Expected Value (EV)", f"₹{mc.expected_value:,.2f}", "#58a6ff"),
+                (mc3, "Value at Risk (95%)", f"₹{mc.var_95:,.2f}", "#ff1744"),
+                (mc4, "20-Day Target (P50)", f"₹{mc.median_price:,.2f}", "#00e5ff"),
+            ]
+            for col, label, val, c in mc_items:
+                col.markdown(
+                    f"""
+                    <div class="metric-card" style="border-top: 3px solid {c};">
+                        <div class="metric-label">{label}</div>
+                        <div class="metric-value" style="font-size:18px; color:{c};">{val}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
         st.markdown("<br>", unsafe_allow_html=True)
+
 
         # ── Better Stock Alternatives ──────────────────────────────────────────
         if "better_alternatives" in st.session_state and st.session_state.better_alternatives:

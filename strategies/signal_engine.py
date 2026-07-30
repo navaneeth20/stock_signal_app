@@ -61,6 +61,10 @@ class SignalResult:
     df: Optional[pd.DataFrame] = None
     signal_age_days: int = 1
     recommended_horizon: str = "5–15 Trading Days"
+    mtf_result: Optional[Any] = None
+    news_result: Optional[Any] = None
+    mc_result: Optional[Any] = None
+
 
 
 def _compute_signal_age(df: pd.DataFrame) -> int:
