@@ -22,21 +22,68 @@ logger = logging.getLogger(__name__)
 _cache = DataCache()
 
 
+SYMBOL_ALIASES: dict[str, str] = {
+    "HERO": "HEROMOTOCO.NS",
+    "HERO.NS": "HEROMOTOCO.NS",
+    "HERO.BO": "HEROMOTOCO.BO",
+    "HEROMOTO": "HEROMOTOCO.NS",
+    "HEROMOTOCORP": "HEROMOTOCO.NS",
+    "TATAMOTOR": "TATAMOTORS.NS",
+    "TATAMOTOR.NS": "TATAMOTORS.NS",
+    "BAJAJAUTO": "BAJAJ-AUTO.NS",
+    "BAJAJAUTO.NS": "BAJAJ-AUTO.NS",
+    "MM": "M&M.NS",
+    "MM.NS": "M&M.NS",
+    "MAHINDRA": "M&M.NS",
+    "LARSEN": "LT.NS",
+    "L&T": "LT.NS",
+    "HDFC": "HDFCBANK.NS",
+    "ICICI": "ICICIBANK.NS",
+    "KOTAK": "KOTAKBANK.NS",
+    "AXIS": "AXISBANK.NS",
+    "SBI": "SBIN.NS",
+    "ULTRATECH": "ULTRACEMCO.NS",
+    "SUN": "SUNPHARMA.NS",
+    "REDDY": "DRREDDY.NS",
+    "DRREDDYS": "DRREDDY.NS",
+    "APOLLO": "APOLLOHOSP.NS",
+    "ADANI": "ADANIENT.NS",
+    "ADANIPORT": "ADANIPORTS.NS",
+    "TATACONSUMER": "TATACONSUM.NS",
+    "BAJAJFINANCE": "BAJFINANCE.NS",
+    "BAJAJFINSERV": "BAJAJFINSV.NS",
+    "PERSISTENTSYS": "PERSISTENT.NS",
+    "HINDUNILEVER": "HINDUNILVR.NS",
+    "HUL": "HINDUNILVR.NS",
+    "NESTLE": "NESTLEIND.NS",
+}
+
+
 def normalise_symbol(symbol: str, exchange: str = "NSE") -> str:
     """
-    Ensure the symbol has the correct Yahoo Finance suffix.
+    Ensure the symbol has the correct Yahoo Finance suffix and resolve aliases.
 
     Args:
-        symbol: Raw stock symbol e.g. 'RELIANCE' or 'RELIANCE.NS'
+        symbol: Raw stock symbol e.g. 'HERO', 'RELIANCE', 'RELIANCE.NS'
         exchange: 'NSE' or 'BSE'
 
     Returns:
-        Yahoo Finance formatted symbol e.g. 'RELIANCE.NS'
+        Yahoo Finance formatted symbol e.g. 'HEROMOTOCO.NS'
     """
+    symbol = symbol.upper().strip()
+
+    if symbol in SYMBOL_ALIASES:
+        return SYMBOL_ALIASES[symbol]
+
+    clean_sym = symbol.split(".")[0]
+    if clean_sym in SYMBOL_ALIASES:
+        target = SYMBOL_ALIASES[clean_sym]
+        suffix = ".BO" if exchange.upper() == "BSE" or symbol.endswith(".BO") else ".NS"
+        return target.split(".")[0] + suffix
+
     suffix_map = {"NSE": ".NS", "BSE": ".BO"}
     suffix = suffix_map.get(exchange.upper(), ".NS")
 
-    symbol = symbol.upper().strip()
     if "." not in symbol:
         symbol = f"{symbol}{suffix}"
     return symbol
@@ -71,6 +118,9 @@ def fetch_ohlcv(
     Raises:
         ValueError: If the returned data is empty.
     """
+    # Ensure symbol is normalised
+    symbol = normalise_symbol(symbol)
+
     cache_key = f"{symbol}_{interval}_{period}_{start}_{end}"
     cached = _cache.get(cache_key)
     if cached is not None:
@@ -102,7 +152,7 @@ def fetch_ohlcv(
             if df.empty:
                 raise ValueError(
                     f"No data returned for symbol '{symbol}'. "
-                    "Check the symbol or try a different timeframe."
+                    "Please verify the ticker symbol (e.g. HEROMOTOCO for Hero MotoCorp, TATAMOTORS, RELIANCE)."
                 )
 
             # Standardise column names
@@ -129,9 +179,11 @@ def fetch_ohlcv(
             )
             time.sleep(wait)
 
-    raise RuntimeError(
-        f"Failed to fetch data for '{symbol}' after {retries} attempts."
+    raise ValueError(
+        f"Symbol '{symbol}' was not found on Yahoo Finance after {retries} attempts. "
+        "Please check the ticker symbol (e.g. HEROMOTOCO for Hero MotoCorp)."
     ) from last_exc
+
 
 
 def fetch_multiple_stocks(
