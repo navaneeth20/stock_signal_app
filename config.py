@@ -109,15 +109,49 @@ NIFTY_MIDCAP: List[Dict[str, str]] = [
     {"symbol": "CONCOR.NS", "name": "Container Corporation of India"},
 ]
 
-INDEX_GROUPS: Dict[str, List[Dict[str, str]]] = {
-    "NIFTY 50": NIFTY50_STOCKS,
-    "NIFTY MIDCAP": NIFTY_MIDCAP,
-}
+NIFTY_SMALLCAP: List[Dict[str, str]] = [
+    {"symbol": "HAL.NS", "name": "Hindustan Aeronautics"},
+    {"symbol": "BEL.NS", "name": "Bharat Electronics"},
+    {"symbol": "IRFC.NS", "name": "Indian Railway Finance"},
+    {"symbol": "RVNL.NS", "name": "Rail Vikas Nigam"},
+    {"symbol": "BHEL.NS", "name": "Bharat Heavy Electricals"},
+    {"symbol": "IOC.NS", "name": "Indian Oil Corporation"},
+    {"symbol": "GAIL.NS", "name": "GAIL India"},
+    {"symbol": "RECLTD.NS", "name": "REC Ltd"},
+
+    {"symbol": "PFC.NS", "name": "Power Finance Corp"},
+    {"symbol": "SUZLON.NS", "name": "Suzlon Energy"},
+    {"symbol": "ZOMATO.NS", "name": "Eternal / Zomato"},
+    {"symbol": "JIOFIN.NS", "name": "Jio Financial Services"},
+    {"symbol": "POLYCAB.NS", "name": "Polycab India"},
+    {"symbol": "TRENT.NS", "name": "Trent Ltd"},
+    {"symbol": "IRCTC.NS", "name": "IRCTC"},
+    {"symbol": "TATAPOWER.NS", "name": "Tata Power"},
+    {"symbol": "NHPC.NS", "name": "NHPC Ltd"},
+    {"symbol": "MAZDOCK.NS", "name": "Mazagon Dock Shipbuilders"},
+    {"symbol": "BDL.NS", "name": "Bharat Dynamics"},
+    {"symbol": "YESBANK.NS", "name": "Yes Bank"},
+    {"symbol": "IDEA.NS", "name": "Vodafone Idea"},
+    {"symbol": "DLF.NS", "name": "DLF Ltd"},
+    {"symbol": "SAIL.NS", "name": "Steel Authority of India"},
+    {"symbol": "NMDC.NS", "name": "NMDC Ltd"},
+    {"symbol": "NATIONALUM.NS", "name": "National Aluminium"},
+    {"symbol": "OIL.NS", "name": "Oil India"},
+    {"symbol": "HUDCO.NS", "name": "HUDCO"},
+    {"symbol": "IREDA.NS", "name": "IREDA"},
+    {"symbol": "INDIHOTEL.NS", "name": "Indian Hotels Company"},
+    {"symbol": "TATAELXSI.NS", "name": "Tata Elxsi"},
+    {"symbol": "DIXON.NS", "name": "Dixon Technologies"},
+    {"symbol": "KPITTECH.NS", "name": "KPIT Technologies"},
+]
+
+ALL_STOCKS: List[Dict[str, str]] = NIFTY50_STOCKS + NIFTY_MIDCAP + NIFTY_SMALLCAP
 
 # ─────────────────────────────────────────────
 # Sector & Category Pools for Peer Alternatives
 # ─────────────────────────────────────────────
 SECTOR_POOLS: Dict[str, List[Dict[str, str]]] = {
+
     "IT & Software": [
         {"symbol": "TCS.NS", "name": "Tata Consultancy Services"},
         {"symbol": "INFY.NS", "name": "Infosys"},
@@ -186,6 +220,22 @@ SECTOR_POOLS: Dict[str, List[Dict[str, str]]] = {
         {"symbol": "ADANIPORTS.NS", "name": "Adani Ports"},
     ],
 }
+
+INDEX_GROUPS: Dict[str, List[Dict[str, str]]] = {
+    "ALL STOCKS (100+ Liquid NSE)": ALL_STOCKS,
+    "NIFTY 50": NIFTY50_STOCKS,
+    "NIFTY MIDCAP": NIFTY_MIDCAP,
+    "NIFTY SMALLCAP & MOMENTUM": NIFTY_SMALLCAP,
+    "IT & SOFTWARE": SECTOR_POOLS["IT & Software"],
+    "BANKING & FINANCIALS": SECTOR_POOLS["Banking & Financials"],
+    "AUTOMOBILES": SECTOR_POOLS["Automobiles"],
+    "PHARMA & HEALTHCARE": SECTOR_POOLS["Pharma & Healthcare"],
+    "ENERGY & UTILITIES": SECTOR_POOLS["Energy & Utilities"],
+    "METALS & MINING": SECTOR_POOLS["Metals & Mining"],
+    "FMCG & CONSUMER": SECTOR_POOLS["FMCG & Consumer"],
+    "INDUSTRIALS & CEMENT": SECTOR_POOLS["Industrials & Cement"],
+}
+
 
 
 # ─────────────────────────────────────────────

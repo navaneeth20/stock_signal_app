@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 # ── Project imports ───────────────────────────────────────────────────────────
 from config import (
+    ALL_STOCKS,
     APP_NAME,
     APP_TAGLINE,
     APP_VERSION,
@@ -38,6 +39,7 @@ from config import (
     INDEX_GROUPS,
     NIFTY50_STOCKS,
     OPENAI_API_KEY,
+
     OPENAI_BASE_URL,
     SIGNAL_COLORS,
     SIGNAL_EMOJI,
@@ -392,8 +394,9 @@ with st.sidebar:
     st.markdown("#### 🏦 Stock Selection")
 
     # Build symbol→name mapping for display
-    all_stocks = NIFTY50_STOCKS
+    all_stocks = ALL_STOCKS
     symbol_map = {s["symbol"]: f"{s['name']} ({s['symbol']})" for s in all_stocks}
+
 
     search_input = st.text_input(
         "Custom Symbol",
@@ -1149,12 +1152,18 @@ with tab_backtest:
 
     with bt_col1:
         st.markdown("#### Configuration")
-        bt_symbol = st.selectbox(
-            "Stock",
-            options=[s["symbol"] for s in NIFTY50_STOCKS],
-            format_func=lambda s: f"{next((x['name'] for x in NIFTY50_STOCKS if x['symbol']==s), s)} ({s})",
-            key="bt_symbol",
-        )
+        bt_custom = st.text_input("Custom Ticker (Optional)", placeholder="e.g. WIPRO, SUZLON, TATAMOTORS", key="bt_custom_input")
+        if bt_custom.strip():
+            target_bt_symbol = normalise_symbol(bt_custom.strip())
+        else:
+            bt_symbol = st.selectbox(
+                "Select Stock",
+                options=[s["symbol"] for s in ALL_STOCKS],
+                format_func=lambda s: f"{get_stock_name(s)} ({s})",
+                key="bt_symbol",
+            )
+            target_bt_symbol = bt_symbol
+
         bt_period = st.selectbox("Period", ["1 Year", "2 Years", "3 Years", "5 Years"], key="bt_period")
         bt_period_map = {"1 Year": "1y", "2 Years": "2y", "3 Years": "3y", "5 Years": "5y"}
         bt_capital = st.number_input(
@@ -1165,11 +1174,12 @@ with tab_backtest:
 
     with bt_col2:
         if run_bt:
-            with st.spinner("Running backtest…"):
+            with st.spinner(f"Running backtest for {target_bt_symbol}…"):
                 try:
-                    bt_df_raw = fetch_ohlcv(bt_symbol, interval="1d", period=bt_period_map[bt_period])
+                    bt_df_raw = fetch_ohlcv(target_bt_symbol, interval="1d", period=bt_period_map[bt_period])
                     bt_df = compute_all_indicators(bt_df_raw)
                     bt_result = run_backtest(bt_df, initial_capital=bt_capital)
+
 
                     # Metrics row
                     bm1, bm2, bm3 = st.columns(3)
@@ -1383,24 +1393,39 @@ with tab_watchlist:
 
                     st.dataframe(pd.DataFrame(wl_data), use_container_width=True, hide_index=True)
             else:
-                # Show basic list with remove buttons
+                # Show basic list with 1-click Analyse & Remove buttons
                 for item in watchlist:
-                    col_a, col_b, col_c = st.columns([2, 2, 1])
+
+                    col_a, col_b, col_c, col_d = st.columns([2, 2.5, 1.5, 1])
                     col_a.markdown(f"**{item['symbol']}**")
                     col_b.markdown(f"<span style='color:#8b949e'>{item['name'] or '—'}</span>", unsafe_allow_html=True)
-                    if col_c.button("🗑", key=f"rm_{item['symbol']}"):
+                    if col_c.button("⚡ Analyse", key=f"wl_ana_{item['symbol']}"):
+                        load_and_analyse(item["symbol"])
+                        st.rerun()
+                    if col_d.button("🗑", key=f"rm_{item['symbol']}"):
                         remove_from_watchlist(item["symbol"])
                         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### 📜 Recent Signal History")
-    recent = get_recent_signals(limit=20)
+    st.markdown("#### 📜 Recent Signal History (Click ⚡ to Load Analysis)")
+    recent = get_recent_signals(limit=25)
     if recent:
-        recent_df = pd.DataFrame(recent)[
-            ["symbol", "signal", "confidence", "entry_price", "risk_reward", "generated_at"]
-        ]
-        recent_df.columns = ["Symbol", "Signal", "Confidence %", "Entry ₹", "RR Ratio", "Generated At"]
-        st.dataframe(recent_df, use_container_width=True, hide_index=True)
+        for idx, r in enumerate(recent):
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 2, 1.5])
+            sym = r["symbol"]
+            sig = r["signal"]
+            conf = r["confidence"]
+            dt_str = str(r.get("generated_at", ""))[:16]
+            sig_c = SIGNAL_COLORS.get(sig, "#9e9e9e")
+
+            col1.markdown(f"**{sym}**")
+            col2.markdown(f"<span style='color:{sig_c}; font-weight:700;'>{sig}</span>", unsafe_allow_html=True)
+            col3.markdown(f"<span class='mono-font'>{conf:.1f}%</span>", unsafe_allow_html=True)
+            col4.markdown(f"<span style='color:#8b949e; font-size:12px;'>{dt_str}</span>", unsafe_allow_html=True)
+            if col5.button("⚡ Analyse", key=f"hist_btn_{idx}_{sym}"):
+                load_and_analyse(sym)
+                st.rerun()
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
