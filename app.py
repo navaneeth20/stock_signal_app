@@ -1129,10 +1129,13 @@ with tab_chart:
                 "EMA_20", "EMA_50", "RSI", "MACD", "ADX", "ATR",
                 "Supertrend", "Supertrend_Direction",
             ]]
+            raw_sub = df[display_cols].tail(50).copy()
+            float_cols = raw_sub.select_dtypes(include=["float", "float64"]).columns
             st.dataframe(
-                df[display_cols].tail(50).style.format("{:.2f}"),
+                raw_sub.style.format({c: "{:.2f}" for c in float_cols}),
                 use_container_width=True,
             )
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1295,8 +1298,13 @@ with tab_scanner:
                         color = SIGNAL_COLORS.get(val, "#9e9e9e")
                         return f"color: {color}; font-weight: bold"
 
-                    styled = scan_df.style.applymap(_style_signal, subset=["Signal"])
+                    styler = scan_df.style
+                    if hasattr(styler, "map"):
+                        styled = styler.map(_style_signal, subset=["Signal"])
+                    else:
+                        styled = styler.applymap(_style_signal, subset=["Signal"])
                     st.dataframe(styled, use_container_width=True, hide_index=True)
+
             else:
                 st.warning("No results returned from scanner.")
         else:
