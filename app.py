@@ -1241,29 +1241,30 @@ with tab_backtest:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with tab_scanner:
-    st.markdown("### 🔍 Market Scanner")
+    st.markdown("### 🌐 Overall Market Scanner & Sector Intelligence")
 
     sc_col1, sc_col2 = st.columns([1, 3])
 
     with sc_col1:
-        scan_index = st.selectbox("Index", list(INDEX_GROUPS.keys()))
+        scan_index = st.selectbox("Index / Sector Universe", list(INDEX_GROUPS.keys()), index=0, key="scan_index_select")
         scan_filter = st.multiselect(
             "Filter by Signal",
             ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"],
             default=["Strong Buy", "Buy"],
+            key="scan_filter_select",
         )
-        scan_min_confidence = st.slider("Min Confidence %", 0, 100, 60)
-        run_scan = st.button("🔍 Scan Now", type="primary", use_container_width=True)
+        scan_min_confidence = st.slider("Min Confidence %", 0, 100, 55, key="scan_conf_slider")
+        run_scan = st.button("🔍 Scan Overall Market", type="primary", use_container_width=True, key="run_scan_btn")
 
     with sc_col2:
         if run_scan:
-            scan_stocks = INDEX_GROUPS.get(scan_index, NIFTY50_STOCKS)
+            scan_stocks = INDEX_GROUPS.get(scan_index, ALL_STOCKS)
             results_list = []
 
-            progress = st.progress(0, text="Scanning…")
+            progress = st.progress(0, text="Scanning Overall Market Data…")
             for i, stock in enumerate(scan_stocks):
                 sym = stock["symbol"]
-                progress.progress((i + 1) / len(scan_stocks), text=f"Scanning {sym}…")
+                progress.progress((i + 1) / len(scan_stocks), text=f"Scanning {stock['name']} ({sym})…")
                 try:
                     raw = fetch_ohlcv(sym, interval="1d", period="6mo")
                     enriched = compute_all_indicators(raw)
@@ -1278,55 +1279,101 @@ with tab_scanner:
                         "Price": f"₹{last['Close']:,.2f}",
                         "Change%": f"{chg:+.2f}%",
                         "Signal": sig_r.signal,
-                        "Confidence": f"{sig_r.confidence:.1f}%",
-                        "RSI": f"{last.get('RSI', 0):.1f}" if pd.notna(last.get("RSI", None)) else "N/A",
-                        "ADX": f"{last.get('ADX', 0):.1f}" if pd.notna(last.get("ADX", None)) else "N/A",
+                        "Confidence": sig_r.confidence,
+                        "RSI": float(last.get("RSI", 0)) if pd.notna(last.get("RSI", None)) else 0.0,
+                        "ADX": float(last.get("ADX", 0)) if pd.notna(last.get("ADX", None)) else 0.0,
+                        "raw_change": chg,
                     })
                 except Exception:
                     pass
 
             progress.empty()
+            st.session_state.scan_results = results_list
+            st.session_state.scan_index_label = scan_index
 
-            if results_list:
-                scan_df = pd.DataFrame(results_list)
+        if "scan_results" in st.session_state and st.session_state.scan_results:
+            results_list = st.session_state.scan_results
+            scan_index_label = st.session_state.get("scan_index_label", scan_index)
 
-                # Filter by signal type
-                if scan_filter:
-                    scan_df = scan_df[scan_df["Signal"].isin(scan_filter)]
+            # Calculate Overall Market Statistics
+            total_scanned = len(results_list)
+            strong_buy_cnt = sum(1 for r in results_list if r["Signal"] == "Strong Buy")
+            buy_cnt = sum(1 for r in results_list if r["Signal"] == "Buy")
+            hold_cnt = sum(1 for r in results_list if r["Signal"] == "Hold")
+            sell_cnt = sum(1 for r in results_list if r["Signal"] in ("Sell", "Strong Sell"))
+            bullish_pct = ((strong_buy_cnt + buy_cnt) / total_scanned * 100) if total_scanned > 0 else 0
 
-                # Filter by confidence
-                scan_df["_conf"] = scan_df["Confidence"].str.replace("%", "").astype(float)
-                scan_df = scan_df[scan_df["_conf"] >= scan_min_confidence].drop("_conf", axis=1)
-
-                if scan_df.empty:
-                    st.warning("No stocks matched the current filter criteria.")
-                else:
-                    st.markdown(f"**Found {len(scan_df)} matches in {scan_index}**")
-
-                    # Color-code signal column
-                    def _style_signal(val):
-                        color = SIGNAL_COLORS.get(val, "#9e9e9e")
-                        return f"color: {color}; font-weight: bold"
-
-                    styler = scan_df.style
-                    if hasattr(styler, "map"):
-                        styled = styler.map(_style_signal, subset=["Signal"])
-                    else:
-                        styled = styler.applymap(_style_signal, subset=["Signal"])
-                    st.dataframe(styled, use_container_width=True, hide_index=True)
-
-            else:
-                st.warning("No results returned from scanner.")
-        else:
+            # Render Overall Market Breadth Banner
             st.markdown(
-                """
-                <div style="text-align:center;padding:60px;color:#8b949e;">
-                    <div style="font-size:48px;margin-bottom:16px;">🔍</div>
-                    <p>Select an index and click <strong>Scan Now</strong> to find trading opportunities.</p>
+                f"""
+                <div style="background:rgba(22,27,34,0.8); border:1px solid rgba(88,166,255,0.25); border-radius:12px; padding:14px 20px; margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <span style="color:#8b949e; font-size:12px; text-transform:uppercase;">Overall Market Breadth:</span>
+                            <span style="color:#00e676; font-weight:800; font-size:16px; margin-left:6px;">{bullish_pct:.1f}% Bullish Momentum</span>
+                        </div>
+                        <div style="font-size:12.5px; color:#c9d1d9;">
+                            Scanned: <strong style="color:#f0f6fc;">{total_scanned} Stocks</strong> | 
+                            🟢 Strong Buy: <strong style="color:#00e676;">{strong_buy_cnt}</strong> | 
+                            🟩 Buy: <strong style="color:#58a6ff;">{buy_cnt}</strong> | 
+                            ⚪ Hold: <strong style="color:#ffb300;">{hold_cnt}</strong> | 
+                            🔴 Bearish: <strong style="color:#ff1744;">{sell_cnt}</strong>
+                        </div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+            # Filter data based on user controls
+            filtered_list = [
+                r for r in results_list
+                if (not scan_filter or r["Signal"] in scan_filter) and r["Confidence"] >= scan_min_confidence
+            ]
+
+            if not filtered_list:
+                st.warning(f"No stocks matched criteria in {scan_index_label} (Min Confidence: {scan_min_confidence}%). Try lowering min confidence slider.")
+            else:
+                st.markdown(f"#### 🎯 Matching Market Opportunities ({len(filtered_list)} found)")
+                for idx, item in enumerate(filtered_list):
+                    sig_c = SIGNAL_COLORS.get(item["Signal"], "#9e9e9e")
+                    chg_c = "#00e676" if item["raw_change"] >= 0 else "#ff1744"
+
+                    col_info, col_act = st.columns([4, 1])
+                    with col_info:
+                        st.markdown(
+                            f"""
+                            <div class="metric-card" style="border-left:4px solid {sig_c}; padding:10px 16px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:14px;">{item['Symbol']}</span>
+                                    <span style="font-size:12px; color:#8b949e;">{item['Name']}</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:16px;">
+                                    <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:13px;">{item['Price']}</span>
+                                    <span class="mono-font" style="font-size:12px; color:{chg_c}; font-weight:600;">{item['Change%']}</span>
+                                    <span style="font-size:11px; font-weight:700; color:{sig_c}; background:{sig_c}22; padding:2px 8px; border-radius:8px;">{item['Signal']}</span>
+                                    <span class="mono-font" style="font-size:12px; color:#58a6ff; font-weight:700;">{item['Confidence']:.1f}%</span>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    with col_act:
+                        if st.button(f"⚡ Analyse", key=f"scan_btn_{idx}_{item['Symbol']}"):
+                            load_and_analyse(item['Symbol'])
+                            st.rerun()
+        else:
+            st.markdown(
+                """
+                <div style="text-align:center;padding:60px 20px;color:#8b949e;">
+                    <div style="font-size:48px;margin-bottom:16px;">🌐</div>
+                    <h3 style="color:#58a6ff; margin-bottom:8px;">Overall Market Scanner</h3>
+                    <p>Select <strong>ALL STOCKS (100+ Liquid NSE)</strong> or a specific sector and click <strong>Scan Overall Market</strong> to analyze real-time market breadth and find high-confidence signals.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
