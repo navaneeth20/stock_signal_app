@@ -52,11 +52,26 @@ def initialise_db() -> None:
                 generated_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS search_history (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol      TEXT NOT NULL,
+                name        TEXT,
+                signal      TEXT,
+                confidence  REAL,
+                price       REAL,
+                source      TEXT DEFAULT 'Search',
+                searched_at TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_signal_symbol
                 ON signal_history (symbol, generated_at DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_search_history_at
+                ON search_history (searched_at DESC);
             """
         )
     logger.info("Database initialised at %s", DB_PATH)
+
 
 
 # ── Watchlist ──────────────────────────────────────────────────────────────────
@@ -162,3 +177,90 @@ def get_recent_signals(symbol: Optional[str] = None, limit: int = 50) -> list[di
     except Exception as exc:  # noqa: BLE001
         logger.error("get_recent_signals error: %s", exc)
         return []
+
+
+# ── Search History & EOD Reporting ─────────────────────────────────────────────
+
+def log_search_event(
+    symbol: str,
+    name: str = "",
+    signal: str = "",
+    confidence: float = 0.0,
+    price: float = 0.0,
+    source: str = "Search",
+) -> None:
+    """Record a user search event into SQLite history."""
+    try:
+        with _get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO search_history
+                (symbol, name, signal, confidence, price, source)
+                VALUES (?,?,?,?,?,?)
+                """,
+                (symbol.upper(), name, signal, confidence, price, source),
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("log_search_event error: %s", exc)
+
+
+def get_search_history(limit: int = 100, date_filter: Optional[str] = None) -> list[dict]:
+    """Retrieve search history entries from SQLite."""
+    try:
+        with _get_conn() as conn:
+            if date_filter:
+                rows = conn.execute(
+                    "SELECT * FROM search_history WHERE date(searched_at) = date(?) ORDER BY searched_at DESC LIMIT ?",
+                    (date_filter, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM search_history ORDER BY searched_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_search_history error: %s", exc)
+        return []
+
+
+def get_eod_summary(date_str: Optional[str] = None) -> dict:
+    """Generate End-of-Day summary stats for a given date (defaults to today)."""
+    if not date_str:
+        date_str = datetime.now().strftime("%Y-%m-%d")
+    try:
+        with _get_conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM search_history WHERE date(searched_at) = date(?) ORDER BY searched_at DESC",
+                (date_str,),
+            ).fetchall()
+            data = [dict(r) for r in rows]
+
+            unique_symbols = conn.execute(
+                "SELECT COUNT(DISTINCT symbol) as count FROM search_history WHERE date(searched_at) = date(?)",
+                (date_str,),
+            ).fetchone()["count"]
+
+            top_searched = conn.execute(
+                """
+                SELECT symbol, name, COUNT(*) as query_count 
+                FROM search_history 
+                WHERE date(searched_at) = date(?)
+                GROUP BY symbol 
+                ORDER BY query_count DESC 
+                LIMIT 5
+                """,
+                (date_str,),
+            ).fetchall()
+
+            return {
+                "date": date_str,
+                "total_queries": len(data),
+                "unique_stocks": unique_symbols,
+                "top_searched": [dict(r) for r in top_searched],
+                "all_rows": data,
+            }
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_eod_summary error: %s", exc)
+        return {"date": date_str, "total_queries": 0, "unique_stocks": 0, "top_searched": [], "all_rows": []}
+

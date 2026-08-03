@@ -60,14 +60,18 @@ from data.news_sentiment import fetch_news_sentiment
 
 from database.database import (
     add_to_watchlist,
+    get_eod_summary,
     get_recent_signals,
+    get_search_history,
     get_watchlist,
     initialise_db,
     is_in_watchlist,
+    log_search_event,
     remove_from_watchlist,
     save_signal,
 )
 from indicators.mtf import compute_mtf_alignment
+
 from strategies.risk import calculate_risk
 from strategies.signal_engine import compute_all_indicators, generate_signal
 from utils.helpers import color_for_signal, format_inr, format_volume, pct_change
@@ -567,7 +571,7 @@ def load_and_analyse(symbol: str) -> None:
             # Find better sector/category alternatives
             sector_category, alternatives = _find_better_alternatives(symbol, result.confidence)
 
-            # Persist signal
+            # Persist signal & search event
             save_signal(
                 symbol,
                 result.signal,
@@ -578,6 +582,16 @@ def load_and_analyse(symbol: str) -> None:
                 risk.risk_reward,
                 interval,
             )
+
+            log_search_event(
+                symbol=symbol,
+                name=comp_name,
+                signal=result.signal,
+                confidence=result.confidence,
+                price=risk.entry_price,
+                source="Dashboard Search",
+            )
+
 
             st.session_state.df = df
             st.session_state.signal_result = result
@@ -1472,6 +1486,76 @@ with tab_watchlist:
             if col5.button("⚡ Analyse", key=f"hist_btn_{idx}_{sym}"):
                 load_and_analyse(sym)
                 st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+    st.markdown("### 📊 Real-Time Search History & End-Of-Day (EOD) Analytics")
+
+    eod_col1, eod_col2 = st.columns([1, 2.5])
+
+    with eod_col1:
+        eod_date = st.date_input("Select Date", datetime.now(), key="eod_date_picker")
+        eod_date_str = eod_date.strftime("%Y-%m-%d")
+        eod_stats = get_eod_summary(eod_date_str)
+
+        st.markdown(
+            f"""
+            <div class="metric-card" style="border-top:3px solid #58a6ff; margin-bottom:12px;">
+                <div style="font-size:12px; color:#8b949e; text-transform:uppercase;">Total Queries ({eod_date_str})</div>
+                <div style="font-size:28px; font-weight:800; color:#58a6ff; margin-top:2px;">{eod_stats['total_queries']}</div>
+                <div style="font-size:12px; color:#8b949e; margin-top:4px;">Unique Stocks: <strong style="color:#f0f6fc;">{eod_stats['unique_stocks']}</strong></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if eod_stats["top_searched"]:
+            st.markdown("<strong style='font-size:13px; color:#c9d1d9;'>🔥 Most Searched Today</strong>", unsafe_allow_html=True)
+            for s_item in eod_stats["top_searched"]:
+                st.markdown(
+                    f"""
+                    <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
+                        <span style="color:#f0f6fc; font-weight:600;">{s_item['symbol']}</span>
+                        <span style="color:#58a6ff; font-weight:700;">{s_item['query_count']} queries</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    with eod_col2:
+        search_logs = get_search_history(limit=50, date_filter=eod_date_str)
+        if search_logs:
+            sh_df = pd.DataFrame(search_logs)
+
+            # Format download CSV
+            csv_cols = [c for c in ["searched_at", "symbol", "name", "signal", "confidence", "price", "source"] if c in sh_df.columns]
+            csv_data = sh_df[csv_cols].to_csv(index=False)
+            st.download_button(
+                label=f"📥 Download {eod_date_str} EOD Search Log (CSV)",
+                data=csv_data,
+                file_name=f"StockSense_EOD_Search_Log_{eod_date_str}.csv",
+                mime="text/csv",
+                key="download_eod_csv",
+            )
+
+            for s_idx, row in enumerate(search_logs[:20]):
+                s_sym = row["symbol"]
+                s_sig = row.get("signal", "N/A")
+                s_conf = row.get("confidence", 0.0)
+                s_time = str(row.get("searched_at", ""))[:16]
+                s_c = SIGNAL_COLORS.get(s_sig, "#9e9e9e")
+
+                sc1, sc2, sc3, sc4, sc5 = st.columns([2, 2, 1.5, 2, 1.5])
+                sc1.markdown(f"**{s_sym}**")
+                sc2.markdown(f"<span style='color:{s_c}; font-weight:700;'>{s_sig}</span>", unsafe_allow_html=True)
+                sc3.markdown(f"<span class='mono-font'>{s_conf:.1f}%</span>", unsafe_allow_html=True)
+                sc4.markdown(f"<span style='color:#8b949e; font-size:12px;'>{s_time}</span>", unsafe_allow_html=True)
+                if sc5.button("⚡ Re-Analyse", key=f"sh_btn_{s_idx}_{s_sym}"):
+                    load_and_analyse(s_sym)
+                    st.rerun()
+        else:
+            st.info(f"No search events logged for {eod_date_str} yet. Searches made today will automatically appear here.")
+
 
 
 
