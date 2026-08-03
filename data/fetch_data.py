@@ -55,10 +55,19 @@ SYMBOL_ALIASES: dict[str, str] = {
     "PERSISTENTSYS": "PERSISTENT.NS",
     "REC": "RECLTD.NS",
     "REC.NS": "RECLTD.NS",
-
     "HINDUNILEVER": "HINDUNILVR.NS",
     "HUL": "HINDUNILVR.NS",
     "NESTLE": "NESTLEIND.NS",
+    "IONEXCHANGE": "IONEXCHANG.NS",
+    "IONEXCHANGE.NS": "IONEXCHANG.NS",
+    "IONEXCHANGE.BO": "IONEXCHANG.BO",
+    "ION EXCHANGE": "IONEXCHANG.NS",
+    "ION EXCHANGE.NS": "IONEXCHANG.NS",
+    "ION EXCHANGE.BO": "IONEXCHANG.BO",
+    "IONEXCHANG": "IONEXCHANG.NS",
+    "IONEXCHANG.NS": "IONEXCHANG.NS",
+    "FORCEMOTORS": "FORCEMOTOR.NS",
+    "EICHERMOTORS": "EICHERMOT.NS",
 }
 
 
@@ -67,29 +76,34 @@ def normalise_symbol(symbol: str, exchange: str = "NSE") -> str:
     Ensure the symbol has the correct Yahoo Finance suffix and resolve aliases.
 
     Args:
-        symbol: Raw stock symbol e.g. 'HERO', 'RELIANCE', 'RELIANCE.NS'
+        symbol: Raw stock symbol e.g. 'HERO', 'ION EXCHANGE', 'RELIANCE.NS'
         exchange: 'NSE' or 'BSE'
 
     Returns:
-        Yahoo Finance formatted symbol e.g. 'HEROMOTOCO.NS'
+        Yahoo Finance formatted symbol e.g. 'IONEXCHANG.NS', 'HEROMOTOCO.NS'
     """
-    symbol = symbol.upper().strip()
+    symbol_upper = symbol.upper().strip()
 
-    if symbol in SYMBOL_ALIASES:
-        return SYMBOL_ALIASES[symbol]
+    if symbol_upper in SYMBOL_ALIASES:
+        return SYMBOL_ALIASES[symbol_upper]
 
-    clean_sym = symbol.split(".")[0]
+    no_space = symbol_upper.replace(" ", "").replace("-", "")
+    if no_space in SYMBOL_ALIASES:
+        return SYMBOL_ALIASES[no_space]
+
+    clean_sym = symbol_upper.split(".")[0].replace(" ", "")
     if clean_sym in SYMBOL_ALIASES:
         target = SYMBOL_ALIASES[clean_sym]
-        suffix = ".BO" if exchange.upper() == "BSE" or symbol.endswith(".BO") else ".NS"
+        suffix = ".BO" if exchange.upper() == "BSE" or symbol_upper.endswith(".BO") else ".NS"
         return target.split(".")[0] + suffix
 
     suffix_map = {"NSE": ".NS", "BSE": ".BO"}
     suffix = suffix_map.get(exchange.upper(), ".NS")
 
-    if "." not in symbol:
-        symbol = f"{symbol}{suffix}"
-    return symbol
+    if "." not in symbol_upper:
+        return f"{clean_sym}{suffix}"
+    return f"{clean_sym}{suffix}" if not (symbol_upper.endswith(".NS") or symbol_upper.endswith(".BO")) else symbol_upper.replace(" ", "")
+
 
 
 def strip_ns_suffix(symbol: str) -> str:
