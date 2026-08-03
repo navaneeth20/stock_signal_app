@@ -71,8 +71,14 @@ from database.database import (
     save_signal,
 )
 from indicators.mtf import compute_mtf_alignment
-
+from reports.institutional_llm import (
+    INSTITUTIONAL_PROMPTS,
+    call_gemini_api,
+    call_openai_api,
+    generate_fallback_institutional_report,
+)
 from strategies.risk import calculate_risk
+
 from strategies.signal_engine import compute_all_indicators, generate_signal
 from utils.helpers import color_for_signal, format_inr, format_volume, pct_change
 from utils.quant_risk import run_monte_carlo_simulation
@@ -712,9 +718,10 @@ def _generate_ai_explanation(result, risk) -> str:
 # TABS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-tab_signal, tab_chart, tab_backtest, tab_scanner, tab_watchlist, tab_alerts = st.tabs(
-    ["🎯 Signal", "📊 Chart", "⚡ Backtest", "🔍 Scanner", "⭐ Watchlist", "🔔 Alerts"]
+tab_signal, tab_chart, tab_backtest, tab_scanner, tab_watchlist, tab_research, tab_alerts = st.tabs(
+    ["🎯 Signal", "📊 Chart", "⚡ Backtest", "🔍 Scanner", "⭐ Watchlist & History", "🏛️ Institutional Research (Gemini/LLM)", "🔔 Alerts"]
 )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — SIGNAL
@@ -1560,10 +1567,181 @@ with tab_watchlist:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — ALERTS
+# TAB 6 — INSTITUTIONAL EQUITY RESEARCH (LLM & GEMINI INTELLIGENCE)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab_research:
+    st.markdown("### 🏛️ Institutional Equity Research Engine (Gemini / LLM Intelligence)")
+    st.markdown(
+        """
+        <div style="background:rgba(22,27,34,0.7); border:1px solid rgba(88,166,255,0.25); border-radius:12px; padding:14px 20px; margin-bottom:16px;">
+            <div style="color:#e6edf3; font-size:13.5px; line-height:1.5;">
+                Act like a disciplined Indian equity research analyst using <strong>verifiable public information</strong> (annual reports, concalls, BSE/NSE filings).
+                Generate institutional-grade research across <strong>13 distinct prompts</strong> (Business Model, Moat Score, DCF Sandbox, Downside Risk Ranking, FII/DII Thesis, Bull/Bear Debate, Governance Scorecard, and Peer Tables).
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    r_col1, r_col2 = st.columns([1, 2.5])
+
+    with r_col1:
+        st.markdown("#### ⚙️ Research Controls")
+
+        res_symbol = st.session_state.get("selected_symbol", "RELIANCE.NS")
+        res_comp_name = st.session_state.get("company_name", get_stock_name(res_symbol))
+
+        st.markdown(f"**Target Company**: <span style='color:#58a6ff; font-weight:700;'>{res_comp_name} ({res_symbol})</span>", unsafe_allow_html=True)
+
+        llm_provider = st.selectbox(
+            "AI Intelligence Engine",
+            ["Google Gemini 1.5 Flash (Recommended)", "OpenAI GPT-4o / GPT-4o-mini", "Built-in Financial Intelligence Engine (No API Key Required)"],
+            index=0,
+            key="llm_provider_select",
+        )
+
+        llm_api_key = st.text_input(
+            "API Key (Optional)",
+            type="password",
+            value=os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", os.getenv("OPENAI_API_KEY", ""))),
+            help="Enter your Gemini or OpenAI API Key. If left blank, the Built-in Engine will be used.",
+            key="llm_api_key_input",
+        )
+
+        report_mode = st.radio(
+            "Report Generation Mode",
+            ["🚀 Full 13-Module Institutional Report", "🎯 Single Prompt Analysis"],
+            index=0,
+            key="report_mode_radio",
+        )
+
+        selected_prompt_key = "P1"
+        if report_mode == "🎯 Single Prompt Analysis":
+            prompt_choices = {k: v["title"] for k, v in INSTITUTIONAL_PROMPTS.items()}
+            selected_prompt_key = st.selectbox(
+                "Select Prompt Module",
+                options=list(prompt_choices.keys()),
+                format_func=lambda k: prompt_choices[k],
+                key="single_prompt_select",
+            )
+            st.caption(INSTITUTIONAL_PROMPTS[selected_prompt_key]["description"])
+
+        gen_report_btn = st.button("⚡ Generate Institutional Research Report", type="primary", use_container_width=True, key="gen_report_btn")
+
+    with r_col2:
+        if gen_report_btn:
+            with st.spinner(f"Generating Institutional Research for {res_comp_name}…"):
+                df_curr = st.session_state.get("df")
+                risk_curr = st.session_state.get("risk")
+                sig_curr = st.session_state.get("signal_result")
+
+                curr_price = float(df_curr["Close"].iloc[-1]) if df_curr is not None and not df_curr.empty else 1000.0
+                curr_sig = sig_curr.signal if sig_curr else "Hold"
+                curr_conf = float(sig_curr.confidence) if sig_curr else 60.0
+                curr_rsi = float(df_curr["RSI"].iloc[-1]) if df_curr is not None and "RSI" in df_curr.columns else 50.0
+                curr_adx = float(df_curr["ADX"].iloc[-1]) if df_curr is not None and "ADX" in df_curr.columns else 20.0
+
+                comp_info = get_company_info(res_symbol)
+
+                metrics_pack = {
+                    "price": curr_price,
+                    "signal": curr_sig,
+                    "confidence": curr_conf,
+                    "rsi": curr_rsi,
+                    "adx": curr_adx,
+                    "sector": comp_info.get("sector", "Equities"),
+                    "pe": str(comp_info.get("pe", "24.5")),
+                    "marketCap": comp_info.get("marketCap", 0),
+                }
+
+                generated_outputs = {}
+                keys_to_run = list(INSTITUTIONAL_PROMPTS.keys()) if report_mode == "🚀 Full 13-Module Institutional Report" else [selected_prompt_key]
+
+                for p_key in keys_to_run:
+                    p_info = INSTITUTIONAL_PROMPTS[p_key]
+                    prompt_formatted = p_info["template"].format(company_name=res_comp_name, symbol=res_symbol)
+
+                    res_text = ""
+                    if "Gemini" in llm_provider and llm_api_key.strip():
+                        try:
+                            res_text = call_gemini_api(prompt_formatted, llm_api_key.strip())
+                        except Exception as exc:
+                            st.warning(f"Gemini API fallback for {p_key}: {exc}")
+                            res_text = generate_fallback_institutional_report(p_key, res_symbol, res_comp_name, metrics_pack)
+                    elif "OpenAI" in llm_provider and llm_api_key.strip():
+                        try:
+                            res_text = call_openai_api(prompt_formatted, llm_api_key.strip())
+                        except Exception as exc:
+                            st.warning(f"OpenAI API fallback for {p_key}: {exc}")
+                            res_text = generate_fallback_institutional_report(p_key, res_symbol, res_comp_name, metrics_pack)
+                    else:
+                        res_text = generate_fallback_institutional_report(p_key, res_symbol, res_comp_name, metrics_pack)
+
+                    generated_outputs[p_key] = res_text
+
+                st.session_state.institutional_report_data = {
+                    "symbol": res_symbol,
+                    "company_name": res_comp_name,
+                    "outputs": generated_outputs,
+                    "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+
+        if "institutional_report_data" in st.session_state and st.session_state.institutional_report_data:
+            rep = st.session_state.institutional_report_data
+            outputs = rep["outputs"]
+
+            st.markdown(
+                f"""
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div>
+                        <span style="font-size:18px; font-weight:800; color:#58a6ff;">🏛️ Research Report: {rep['company_name']} ({rep['symbol']})</span>
+                        <div style="font-size:11px; color:#8b949e;">Generated: {rep['generated_at']}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            full_md_text = f"# 🏛️ Institutional Equity Research Report: {rep['company_name']} ({rep['symbol']})\n"
+            full_md_text += f"**Date**: {rep['generated_at']} | **Analyst Lens**: Verifiable Public Filings & Institutional Mandate\n\n"
+            for k, text in outputs.items():
+                title = INSTITUTIONAL_PROMPTS[k]["title"]
+                full_md_text += f"## {title}\n{text}\n\n---\n\n"
+
+            st.download_button(
+                label="📥 Download Complete Equity Research Report (.md)",
+                data=full_md_text,
+                file_name=f"Institutional_Research_{rep['symbol']}_{datetime.now().strftime('%Y%m%d')}.md",
+                mime="text/markdown",
+                key="download_research_md",
+            )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            for k, text in outputs.items():
+                title = INSTITUTIONAL_PROMPTS[k]["title"]
+                with st.expander(f"📌 {title}", expanded=True):
+                    st.markdown(text, unsafe_allow_html=True)
+        else:
+            st.markdown(
+                """
+                <div style="text-align:center;padding:70px 20px;color:#8b949e;">
+                    <div style="font-size:52px;margin-bottom:16px;">🏛️</div>
+                    <h3 style="color:#58a6ff; margin-bottom:8px;">Institutional Equity Research Sandbox</h3>
+                    <p>Select your research parameters and click <strong>Generate Institutional Research Report</strong> to run all 13 prompts (Business Model, Moat Scorecard, Valuation DCF, Risk Ranking, Bull/Bear Debate, Governance Scorecard, and Peer Comparison).</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 7 — ALERTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with tab_alerts:
+
     st.markdown("### 🔔 Alerts & Notifications")
 
     al1, al2 = st.columns(2)
