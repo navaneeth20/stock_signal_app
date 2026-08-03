@@ -1664,18 +1664,24 @@ with tab_research:
                     df_res = fetch_ohlcv(res_symbol, interval="1d", period="6mo")
                     df_res = compute_all_indicators(df_res)
                     sig_res = generate_signal(res_symbol, df_res)
-                    risk_res = calculate_risk(df_res)
+                    risk_res = calculate_risk(df_res, sig_res.signal)
                     curr_price = float(df_res["Close"].iloc[-1])
                     curr_sig = sig_res.signal
                     curr_conf = float(sig_res.confidence)
                     curr_rsi = float(df_res["RSI"].iloc[-1]) if "RSI" in df_res.columns else 50.0
                     curr_adx = float(df_res["ADX"].iloc[-1]) if "ADX" in df_res.columns else 20.0
-                except Exception:
-                    curr_price = 1000.0
+                except Exception as exc:
+                    logger.warning("Error computing indicators for %s: %s", res_symbol, exc)
+                    try:
+                        df_simple = fetch_ohlcv(res_symbol, interval="1d", period="1mo")
+                        curr_price = float(df_simple["Close"].iloc[-1])
+                    except Exception:
+                        curr_price = 0.0
                     curr_sig = "Hold"
                     curr_conf = 60.0
                     curr_rsi = 50.0
                     curr_adx = 20.0
+
 
                 comp_info = get_company_info(res_symbol)
 
