@@ -58,7 +58,7 @@ from data.fetch_data import (
 )
 from data.news_sentiment import fetch_news_sentiment
 
-from database.database import (
+from database import (
     add_to_watchlist,
     get_eod_summary,
     get_recent_signals,
@@ -71,12 +71,13 @@ from database.database import (
     save_signal,
 )
 from indicators.mtf import compute_mtf_alignment
-from reports.institutional_llm import (
+from reports import (
     INSTITUTIONAL_PROMPTS,
     call_gemini_api,
     call_openai_api,
     generate_fallback_institutional_report,
 )
+
 from strategies.risk import calculate_risk
 
 from strategies.signal_engine import compute_all_indicators, generate_signal
