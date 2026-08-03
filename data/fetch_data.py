@@ -92,6 +92,11 @@ def normalise_symbol(symbol: str, exchange: str = "NSE") -> str:
     return symbol
 
 
+def strip_ns_suffix(symbol: str) -> str:
+    """Strip .NS or .BO suffix to get clean ticker symbol (e.g. 'HEROMOTOCO', 'WIPRO')."""
+    return symbol.replace(".NS", "").replace(".BO", "").replace(".ns", "").replace(".bo", "").strip()
+
+
 def fetch_ohlcv(
     symbol: str,
     interval: str = "1d",
@@ -143,13 +148,13 @@ def fetch_ohlcv(
                     interval=interval,
                     start=start.strftime("%Y-%m-%d"),
                     end=end.strftime("%Y-%m-%d"),
-                    auto_adjust=True,
+                    auto_adjust=False,
                 )
             else:
                 df = ticker.history(
                     interval=interval,
                     period=period,
-                    auto_adjust=True,
+                    auto_adjust=False,
                 )
 
             if df.empty:
@@ -157,6 +162,7 @@ def fetch_ohlcv(
                     f"No data returned for symbol '{symbol}'. "
                     "Please verify the ticker symbol (e.g. HEROMOTOCO for Hero MotoCorp, TATAMOTORS, RELIANCE)."
                 )
+
 
             # Standardise column names
             df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
