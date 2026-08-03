@@ -1590,10 +1590,36 @@ with tab_research:
     with r_col1:
         st.markdown("#### ⚙️ Research Controls")
 
-        res_symbol = st.session_state.get("selected_symbol", "RELIANCE.NS")
-        res_comp_name = st.session_state.get("company_name", get_stock_name(res_symbol))
+        res_default_sym = st.session_state.get("selected_symbol", "RELIANCE.NS")
+        res_default_name = st.session_state.get("company_name", get_stock_name(res_default_sym))
 
-        st.markdown(f"**Target Company**: <span style='color:#58a6ff; font-weight:700;'>{res_comp_name} ({res_symbol})</span>", unsafe_allow_html=True)
+        research_company_input = st.text_input(
+            "Company Name or Ticker Symbol",
+            value=res_default_name if res_default_name else res_default_sym,
+            placeholder="e.g. Wipro, Reliance, Tata Motors, TCS, Infosys, HAL",
+            help="Type any Indian company name or NSE ticker symbol to generate institutional research.",
+            key="research_company_name_input",
+        )
+
+        # Resolve symbol & company name dynamically from user input
+        if research_company_input.strip():
+            raw_input = research_company_input.strip()
+            res_symbol = normalise_symbol(raw_input, "NSE")
+            res_comp_name = get_stock_name(res_symbol)
+            if res_comp_name == res_symbol and len(raw_input) > 2:
+                res_comp_name = raw_input.title()
+        else:
+            res_symbol = res_default_sym
+            res_comp_name = res_default_name
+
+        st.markdown(
+            f"""
+            <div style="background:rgba(88,166,255,0.08); border:1px solid rgba(88,166,255,0.2); border-radius:8px; padding:6px 12px; margin-bottom:12px; font-size:12.5px;">
+                Target: <strong style="color:#58a6ff;">{res_comp_name}</strong> <span style="color:#8b949e;">({res_symbol})</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         llm_provider = st.selectbox(
             "AI Intelligence Engine",
@@ -1632,18 +1658,27 @@ with tab_research:
 
     with r_col2:
         if gen_report_btn:
-            with st.spinner(f"Generating Institutional Research for {res_comp_name}…"):
-                df_curr = st.session_state.get("df")
-                risk_curr = st.session_state.get("risk")
-                sig_curr = st.session_state.get("signal_result")
-
-                curr_price = float(df_curr["Close"].iloc[-1]) if df_curr is not None and not df_curr.empty else 1000.0
-                curr_sig = sig_curr.signal if sig_curr else "Hold"
-                curr_conf = float(sig_curr.confidence) if sig_curr else 60.0
-                curr_rsi = float(df_curr["RSI"].iloc[-1]) if df_curr is not None and "RSI" in df_curr.columns else 50.0
-                curr_adx = float(df_curr["ADX"].iloc[-1]) if df_curr is not None and "ADX" in df_curr.columns else 20.0
+            with st.spinner(f"Generating Institutional Research for {res_comp_name} ({res_symbol})…"):
+                # Fetch fresh live OHLCV & indicators dynamically for the target stock
+                try:
+                    df_res = fetch_ohlcv(res_symbol, interval="1d", period="6mo")
+                    df_res = compute_all_indicators(df_res)
+                    sig_res = generate_signal(res_symbol, df_res)
+                    risk_res = calculate_risk(df_res)
+                    curr_price = float(df_res["Close"].iloc[-1])
+                    curr_sig = sig_res.signal
+                    curr_conf = float(sig_res.confidence)
+                    curr_rsi = float(df_res["RSI"].iloc[-1]) if "RSI" in df_res.columns else 50.0
+                    curr_adx = float(df_res["ADX"].iloc[-1]) if "ADX" in df_res.columns else 20.0
+                except Exception:
+                    curr_price = 1000.0
+                    curr_sig = "Hold"
+                    curr_conf = 60.0
+                    curr_rsi = 50.0
+                    curr_adx = 20.0
 
                 comp_info = get_company_info(res_symbol)
+
 
                 metrics_pack = {
                     "price": curr_price,
