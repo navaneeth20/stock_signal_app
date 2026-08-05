@@ -169,11 +169,13 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
 
     # Risk levels (based on last ATR)
     last = df.iloc[-1]
-    entry = last["Close"]
-    atr = last.get("ATR", entry * 0.02)
-    stop_loss = entry - 1.5 * atr
+    entry = float(last["Close"])
+    raw_atr = last.get("ATR", entry * 0.02)
+    atr = float(raw_atr) if (pd.notna(raw_atr) and float(raw_atr) > 0) else entry * 0.02
+    stop_loss = max(0.01, entry - 1.5 * atr)
     take_profit = entry + 3.0 * atr  # 2:1 RRR at minimum
-    rr = (take_profit - entry) / max(entry - stop_loss, 0.01)
+    risk_dist = max(entry - stop_loss, 0.01)
+    rr = (take_profit - entry) / risk_dist
 
     signal_age = _compute_signal_age(df)
     horizon = "3–7 Trading Days" if signal_label in ("Strong Buy", "Strong Sell") else "7–15 Trading Days"

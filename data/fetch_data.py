@@ -178,13 +178,25 @@ def fetch_ohlcv(
                 )
 
 
-            # Standardise column names
+            # Standardise column names & data types
             df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
             df.index = pd.to_datetime(df.index)
             if df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             df.sort_index(inplace=True)
+
+            # Clean numeric columns and fill missing values
+            for col in ["Open", "High", "Low", "Close"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0)
+
+            # Drop rows where Close is missing completely if ffill fails
+            df.ffill(inplace=True)
+            df.bfill(inplace=True)
             df.dropna(subset=["Close"], inplace=True)
+
+            if df.empty:
+                raise ValueError(f"No valid OHLCV rows for symbol '{symbol}'.")
 
             _cache.set(cache_key, df)
             logger.info("Fetched %d rows for %s", len(df), symbol)

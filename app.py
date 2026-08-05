@@ -60,9 +60,13 @@ from data.news_sentiment import fetch_news_sentiment
 
 from database import (
     add_to_watchlist,
+    create_or_update_user,
+    get_all_users,
     get_eod_summary,
     get_recent_signals,
     get_search_history,
+    get_user_by_email,
+    get_user_by_phone,
     get_watchlist,
     initialise_db,
     is_in_watchlist,
@@ -373,6 +377,8 @@ def _init_session() -> None:
         "auto_refresh": False,
         "last_refresh": 0.0,
         "scanner_results": None,
+        "user": None,
+        "is_logged_in": False,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -381,23 +387,124 @@ def _init_session() -> None:
 _init_session()
 initialise_db()
 
+
+def render_login_page() -> None:
+    """Render a modern, high-converting login / registration page."""
+    st.markdown(
+        f"""
+        <div style="max-width:600px; margin: 20px auto 30px auto; padding:32px; background:linear-gradient(145deg, rgba(22,30,46,0.95), rgba(13,17,23,0.98)); border:1px solid rgba(88,166,255,0.25); border-radius:24px; box-shadow:0 20px 50px rgba(0,0,0,0.6); text-align:center;">
+            <div style="background:linear-gradient(135deg, #1f6feb, #58a6ff); width:64px; height:64px; border-radius:18px; display:inline-flex; align-items:center; justify-content:center; font-size:32px; box-shadow:0 8px 24px rgba(31,111,235,0.5); margin-bottom:16px;">📈</div>
+            <h2 style="color:#f0f6fc; margin:0 0 8px 0; font-weight:800; font-size:26px;">Welcome to {APP_NAME}</h2>
+            <p style="color:#8b949e; font-size:14px; margin-bottom:0;">{APP_TAGLINE}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 2.5, 1])
+    with col2:
+        registered_users = get_all_users()
+        
+        login_tab1, login_tab2 = st.tabs(["🔐 Quick Sign-In", "📝 First-Time Registration"])
+        
+        with login_tab1:
+            if registered_users:
+                st.markdown("##### 👤 Select Previously Saved Account")
+                user_options = {
+                    f"{u['name']} ({u['email']} | 📞 {u['phone']})": u for u in registered_users
+                }
+                selected_user_str = st.selectbox("Select Your Profile", list(user_options.keys()))
+                if st.button("🚀 Enter Dashboard", key="btn_quick_signin", use_container_width=True):
+                    user_data = user_options[selected_user_str]
+                    updated_user = create_or_update_user(user_data['name'], user_data['phone'], user_data['email'])
+                    st.session_state['user'] = updated_user
+                    st.session_state['is_logged_in'] = True
+                    st.success(f"Welcome back, {user_data['name']}!")
+                    time.sleep(0.4)
+                    st.rerun()
+            else:
+                st.info("No saved accounts found on this device yet. Please register your details in the next tab.")
+
+            st.markdown("---")
+            st.markdown("##### 🔍 Or Search by Email or Phone")
+            lookup_query = st.text_input("Enter Registered Email or Phone Number", key="lookup_input")
+            if st.button("Sign In via Email/Phone", key="btn_lookup_signin", use_container_width=True):
+                if lookup_query.strip():
+                    found_user = get_user_by_email(lookup_query) or get_user_by_phone(lookup_query)
+                    if found_user:
+                        updated_user = create_or_update_user(found_user['name'], found_user['phone'], found_user['email'])
+                        st.session_state['user'] = updated_user
+                        st.session_state['is_logged_in'] = True
+                        st.success(f"Welcome back, {found_user['name']}!")
+                        time.sleep(0.4)
+                        st.rerun()
+                    else:
+                        st.error("No account found with that email or phone number. Please register under the 'First-Time Registration' tab.")
+                else:
+                    st.warning("Please enter your registered email address or phone number.")
+
+        with login_tab2:
+            st.markdown("##### 📝 Create Your Account")
+            with st.form("registration_form"):
+                reg_name = st.text_input("Full Name", placeholder="e.g. Navaneeth Kumar")
+                reg_phone = st.text_input("Phone Number", placeholder="e.g. +91 9876543210")
+                reg_email = st.text_input("Email Address", placeholder="e.g. navaneeth@example.com")
+                submit_reg = st.form_submit_button("✨ Save Details & Start Trading", use_container_width=True)
+
+                if submit_reg:
+                    if not reg_name.strip():
+                        st.error("Please enter your Full Name.")
+                    elif not reg_phone.strip():
+                        st.error("Please enter your Phone Number.")
+                    elif not reg_email.strip() or "@" not in reg_email:
+                        st.error("Please enter a valid Email Address.")
+                    else:
+                        user_rec = create_or_update_user(reg_name, reg_phone, reg_email)
+                        st.session_state['user'] = user_rec
+                        st.session_state['is_logged_in'] = True
+                        st.success(f"Account created successfully! Welcome, {user_rec['name']}.")
+                        time.sleep(0.4)
+                        st.rerun()
+
+
+# Enforce Login Gate
+if not st.session_state.get("is_logged_in"):
+    render_login_page()
+    st.stop()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
     # Logo + title
+    current_user = st.session_state.get("user") or {}
+    user_display_name = current_user.get("name", "Trader")
+    user_email = current_user.get("email", "")
+    user_phone = current_user.get("phone", "")
+
     st.markdown(
         f"""
-        <div style="background:linear-gradient(135deg, rgba(31,111,235,0.15), rgba(88,166,255,0.05)); border:1px solid rgba(88,166,255,0.2); border-radius:16px; padding:20px 16px; text-align:center; margin-bottom:20px; box-shadow:0 8px 24px rgba(0,0,0,0.3);">
-            <div style="background:linear-gradient(135deg,#1f6feb,#58a6ff); width:48px; height:48px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; font-size:24px; box-shadow:0 6px 20px rgba(31,111,235,0.4); margin-bottom:10px;">📈</div>
-            <div style="font-size:18px; font-weight:800; color:#f0f6fc; letter-spacing:0.02em;">{APP_NAME}</div>
-            <div style="font-size:11px; font-weight:500; color:#8b949e; margin-top:4px;">{APP_TAGLINE}</div>
-            <div class="mono-font" style="display:inline-block; font-size:10px; font-weight:600; color:#58a6ff; background:rgba(88,166,255,0.1); padding:2px 8px; border-radius:10px; margin-top:8px;">v{APP_VERSION} PRO</div>
+        <div style="background:linear-gradient(135deg, rgba(31,111,235,0.15), rgba(88,166,255,0.05)); border:1px solid rgba(88,166,255,0.2); border-radius:16px; padding:16px 14px; text-align:center; margin-bottom:12px; box-shadow:0 8px 24px rgba(0,0,0,0.3);">
+            <div style="background:linear-gradient(135deg,#1f6feb,#58a6ff); width:44px; height:44px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 6px 20px rgba(31,111,235,0.4); margin-bottom:8px;">📈</div>
+            <div style="font-size:17px; font-weight:800; color:#f0f6fc; letter-spacing:0.02em;">{APP_NAME}</div>
+            <div style="font-size:11px; font-weight:500; color:#8b949e; margin-top:2px;">{APP_TAGLINE}</div>
+        </div>
+        
+        <div style="background:rgba(22,30,46,0.8); border:1px solid rgba(88,166,255,0.15); border-radius:12px; padding:10px 12px; margin-bottom:16px;">
+            <div style="font-size:12px; font-weight:700; color:#58a6ff;">👤 Active Trader:</div>
+            <div style="font-size:13px; font-weight:600; color:#f0f6fc;">{user_display_name}</div>
+            <div style="font-size:10px; color:#8b949e;">{user_email} {('• ' + user_phone) if user_phone else ''}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    if st.button("🚪 Switch / Logout Account", key="btn_logout_sidebar", use_container_width=True):
+        st.session_state["is_logged_in"] = False
+        st.session_state["user"] = None
+        st.rerun()
 
     st.divider()
 

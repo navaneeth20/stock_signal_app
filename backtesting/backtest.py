@@ -106,6 +106,7 @@ def run_backtest(
     equity = initial_capital
     position = 0        # shares held
     entry_price = 0.0
+    entry_date = df.index[0]
     trades: list[dict] = []
     equity_curve = []
 
@@ -122,13 +123,14 @@ def run_backtest(
                 equity -= cost
                 position = shares
                 entry_price = close
+                entry_date = date
 
         # Exit
         elif sig == -1 and position > 0:
             proceeds = position * close * (1 - commission)
             pnl = proceeds - (position * entry_price)
             trades.append({
-                "entry_date": entry_date if "entry_date" in dir() else date,
+                "entry_date": entry_date,
                 "exit_date": date,
                 "entry_price": entry_price,
                 "exit_price": close,
@@ -143,15 +145,13 @@ def run_backtest(
         mtm = equity + (position * close if position > 0 else 0)
         equity_curve.append({"date": date, "equity": mtm})
 
-        if sig == 1 and position > 0:
-            entry_date = date  # noqa: F841 — update entry date on each signal extension
-
     # Close any open position at last price
     if position > 0:
         last_close = df["Close"].iloc[-1]
         proceeds = position * last_close * (1 - commission)
         pnl = proceeds - (position * entry_price)
         trades.append({
+            "entry_date": entry_date,
             "exit_date": df.index[-1],
             "entry_price": entry_price,
             "exit_price": last_close,
@@ -173,18 +173,21 @@ def run_backtest(
     # CAGR
     n_days = max((df.index[-1] - df.index[0]).days, 1)
     years = n_days / 365.25
-    cagr = ((equity / initial_capital) ** (1 / max(years, 0.1)) - 1) * 100
+    if equity > 0 and years > 0:
+        cagr = ((equity / initial_capital) ** (1.0 / years) - 1) * 100
+    else:
+        cagr = -100.0 if equity <= 0 else 0.0
 
     # Daily returns
     daily_ret = eq_series.pct_change().dropna()
 
     # Sharpe
     excess = daily_ret - (RISK_FREE_RATE / 252)
-    sharpe = (excess.mean() / excess.std() * np.sqrt(252)) if excess.std() > 0 else 0
+    sharpe = (excess.mean() / excess.std() * np.sqrt(252)) if (not excess.empty and excess.std() > 1e-9) else 0.0
 
     # Sortino
     downside = excess[excess < 0]
-    sortino = (excess.mean() / downside.std() * np.sqrt(252)) if len(downside) > 0 and downside.std() > 0 else 0
+    sortino = (excess.mean() / downside.std() * np.sqrt(252)) if (not downside.empty and downside.std() > 1e-9) else 0.0
 
     # Max Drawdown
     rolling_max = eq_series.cummax()

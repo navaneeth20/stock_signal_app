@@ -63,11 +63,23 @@ def initialise_db() -> None:
                 searched_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS users (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL,
+                phone       TEXT NOT NULL,
+                email       TEXT NOT NULL UNIQUE,
+                created_at  TEXT DEFAULT (datetime('now')),
+                last_login  TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_signal_symbol
                 ON signal_history (symbol, generated_at DESC);
 
             CREATE INDEX IF NOT EXISTS idx_search_history_at
                 ON search_history (searched_at DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_users_email
+                ON users (email);
             """
         )
     logger.info("Database initialised at %s", DB_PATH)
@@ -263,4 +275,99 @@ def get_eod_summary(date_str: Optional[str] = None) -> dict:
     except Exception as exc:  # noqa: BLE001
         logger.error("get_eod_summary error: %s", exc)
         return {"date": date_str, "total_queries": 0, "unique_stocks": 0, "top_searched": [], "all_rows": []}
+
+
+# ── User Management ────────────────────────────────────────────────────────────
+
+def get_user_by_email(email: str) -> Optional[dict]:
+    """Retrieve user record by email address."""
+    try:
+        with _get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),)
+            ).fetchone()
+            return dict(row) if row else None
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_user_by_email error: %s", exc)
+        return None
+
+
+def get_user_by_phone(phone: str) -> Optional[dict]:
+    """Retrieve user record by phone number."""
+    try:
+        with _get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE phone = ?", (phone.strip(),)
+            ).fetchone()
+            return dict(row) if row else None
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_user_by_phone error: %s", exc)
+        return None
+
+
+def create_or_update_user(name: str, phone: str, email: str) -> dict:
+    """
+    Create a new user or update existing user login time and details.
+
+    Args:
+        name: Full Name
+        phone: Phone Number
+        email: Email Address
+
+    Returns:
+        User record dictionary.
+    """
+    clean_email = email.strip().lower()
+    clean_name = name.strip()
+    clean_phone = phone.strip()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    existing = get_user_by_email(clean_email)
+    try:
+        with _get_conn() as conn:
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE users 
+                    SET name = ?, phone = ?, last_login = ? 
+                    WHERE LOWER(email) = LOWER(?)
+                    """,
+                    (clean_name, clean_phone, now_str, clean_email),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO users (name, phone, email, created_at, last_login)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (clean_name, clean_phone, clean_email, now_str, now_str),
+                )
+        return get_user_by_email(clean_email) or {
+            "name": clean_name,
+            "phone": clean_phone,
+            "email": clean_email,
+            "created_at": now_str,
+            "last_login": now_str,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.error("create_or_update_user error: %s", exc)
+        return {
+            "name": clean_name,
+            "phone": clean_phone,
+            "email": clean_email,
+            "created_at": now_str,
+            "last_login": now_str,
+        }
+
+
+def get_all_users() -> list[dict]:
+    """Retrieve all registered users."""
+    try:
+        with _get_conn() as conn:
+            rows = conn.execute("SELECT * FROM users ORDER BY last_login DESC").fetchall()
+            return [dict(r) for r in rows]
+    except Exception as exc:  # noqa: BLE001
+        logger.error("get_all_users error: %s", exc)
+        return []
+
 
