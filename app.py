@@ -113,7 +113,7 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ── Global Theme & Background ── */
 html, body, [class*="css"] {
@@ -121,122 +121,125 @@ html, body, [class*="css"] {
     -webkit-font-smoothing: antialiased;
 }
 .stApp {
-    background: radial-gradient(circle at 50% 0%, #151d2a 0%, #090c10 70%, #05070a 100%);
-    color: #e6edf3;
+    background: #090d14;
+    background-image: 
+        radial-gradient(circle at 50% 0%, rgba(31, 111, 235, 0.12) 0%, transparent 60%),
+        radial-gradient(rgba(56, 139, 253, 0.04) 1px, transparent 0);
+    background-size: 100% 100%, 28px 28px;
+    color: #f0f6fc;
 }
 
-/* ── Typography & Ticker Fonts ── */
+/* ── Typography & Monospace ── */
 .mono-font {
     font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* ── Hero Terminal Header Banner ── */
+/* ── Enterprise Header Terminal ── */
 .hero-header {
-    background: linear-gradient(135deg, rgba(22, 27, 34, 0.75) 0%, rgba(13, 17, 23, 0.9) 100%);
+    background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.85) 100%);
     backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(88, 166, 255, 0.18);
-    border-radius: 18px;
-    padding: 24px 30px;
-    margin-bottom: 28px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(88, 166, 255, 0.2);
+    border-radius: 16px;
+    padding: 22px 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     position: relative;
     overflow: hidden;
 }
 .hero-header::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, #00f2fe, #4facfe, #00e676, #00f2fe);
-    background-size: 300% 100%;
-    animation: gradientShift 6s ease infinite;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, #1f6feb, #388bfd, #2ea043, #388bfd, #1f6feb);
+    background-size: 200% 100%;
+    animation: borderGlow 4s linear infinite;
 }
-@keyframes gradientShift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+@keyframes borderGlow {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
 }
 
 .live-indicator {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(0, 230, 118, 0.1);
-    border: 1px solid rgba(0, 230, 118, 0.3);
+    background: rgba(46, 160, 67, 0.12);
+    border: 1px solid rgba(46, 160, 67, 0.35);
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 11px;
     font-weight: 700;
-    color: #00e676;
+    color: #3fb950;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 .pulsing-dot {
-    width: 8px;
-    height: 8px;
-    background-color: #00e676;
+    width: 7px;
+    height: 7px;
+    background-color: #3fb950;
     border-radius: 50%;
-    box-shadow: 0 0 10px #00e676;
+    box-shadow: 0 0 10px #3fb950;
     animation: pulse 1.8s infinite;
 }
 @keyframes pulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
-    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(0, 230, 118, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
 }
 
 /* ── Metric Glass Cards ── */
 .metric-card {
-    background: linear-gradient(135deg, rgba(22, 27, 34, 0.65) 0%, rgba(13, 17, 23, 0.75) 100%);
+    background: linear-gradient(145deg, rgba(17, 24, 39, 0.75) 0%, rgba(13, 17, 23, 0.85) 100%);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 18px 20px;
+    border-radius: 14px;
+    padding: 16px 18px;
     text-align: center;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 .metric-card:hover {
-    transform: translateY(-4px);
-    border-color: rgba(88, 166, 255, 0.4);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(88, 166, 255, 0.15);
+    transform: translateY(-3px);
+    border-color: rgba(88, 166, 255, 0.35);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(88, 166, 255, 0.1);
 }
 .metric-label {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     color: #8b949e;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 8px;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
 }
 .metric-value {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 22px;
+    font-size: 21px;
     font-weight: 700;
     color: #f0f6fc;
 }
 
 /* ── Signal Hero Card ── */
 .hero-signal-card {
-    background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(9, 14, 23, 0.95) 100%);
+    background: linear-gradient(145deg, rgba(13, 20, 32, 0.9) 0%, rgba(9, 13, 20, 0.98) 100%);
     backdrop-filter: blur(16px);
-    border-radius: 20px;
-    padding: 32px;
-    margin-bottom: 28px;
+    border-radius: 18px;
+    padding: 28px;
+    margin-bottom: 24px;
     text-align: center;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     position: relative;
 }
 
 /* ── Section headers ── */
 .section-header {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     color: #58a6ff;
-    letter-spacing: 0.04em;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
     border-bottom: 1px solid rgba(88, 166, 255, 0.15);
     display: flex;
     align-items: center;
@@ -245,68 +248,76 @@ html, body, [class*="css"] {
 
 /* ── AI Explanation Box ── */
 .ai-box {
-    background: linear-gradient(135deg, rgba(13, 33, 55, 0.7) 0%, rgba(10, 22, 40, 0.85) 100%);
+    background: linear-gradient(135deg, rgba(13, 33, 55, 0.65) 0%, rgba(9, 21, 38, 0.85) 100%);
     backdrop-filter: blur(16px);
     border: 1px solid rgba(88, 166, 255, 0.25);
-    border-radius: 16px;
-    padding: 24px;
-    font-size: 14.5px;
-    line-height: 1.75;
+    border-radius: 14px;
+    padding: 22px;
+    font-size: 14px;
+    line-height: 1.7;
     color: #c9d1d9;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Sidebar styling ── */
 [data-testid="stSidebar"] {
-    background: rgba(13, 17, 23, 0.95) !important;
+    background: #0b0e14 !important;
     border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
-/* ── Modern Tabs ── */
+/* ── Modern Enterprise Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 10px;
-    background: rgba(13, 17, 23, 0.6);
-    padding: 8px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    margin-bottom: 24px;
+    gap: 8px;
+    background: rgba(13, 17, 23, 0.8);
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 22px;
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent;
-    border-radius: 10px;
-    padding: 10px 22px;
+    border-radius: 8px;
+    padding: 9px 18px;
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: 13px;
     color: #8b949e;
     border: none !important;
     transition: all 0.2s ease;
 }
 .stTabs [data-baseweb="tab"]:hover {
-    color: #e6edf3;
-    background: rgba(255, 255, 255, 0.05);
+    color: #f0f6fc;
+    background: rgba(255, 255, 255, 0.04);
 }
 .stTabs [aria-selected="true"] {
     background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%) !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 16px rgba(31, 111, 235, 0.4) !important;
+    box-shadow: 0 4px 14px rgba(31, 111, 235, 0.35) !important;
 }
 
 /* ── Buttons ── */
 .stButton > button {
-    border-radius: 12px !important;
+    border-radius: 10px !important;
     font-weight: 600 !important;
-    padding: 10px 24px !important;
-    transition: all 0.25s ease !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding: 9px 20px !important;
+    transition: all 0.2s ease !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
 }
 .stButton > button[kind="primary"] {
     background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important;
     border-color: #3fb950 !important;
-    box-shadow: 0 6px 20px rgba(46, 160, 67, 0.3) !important;
+    box-shadow: 0 4px 16px rgba(46, 160, 67, 0.3) !important;
 }
 .stButton > button[kind="primary"]:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 10px 28px rgba(46, 160, 67, 0.5) !important;
+    box-shadow: 0 8px 24px rgba(46, 160, 67, 0.45) !important;
+}
+
+/* ── Inputs & Selectboxes ── */
+div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
+    background-color: rgba(13, 17, 23, 0.7) !important;
+    border-color: rgba(88, 166, 255, 0.2) !important;
+    border-radius: 8px !important;
+    color: #f0f6fc !important;
 }
 
 /* ── Custom Scrollbar ── */
@@ -315,51 +326,20 @@ html, body, [class*="css"] {
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
 
-/* ── Mobile & Responsive UI Media Queries ── */
+/* ── Mobile Responsive ── */
 @media (max-width: 768px) {
     .hero-header {
         padding: 16px 14px !important;
         margin-bottom: 16px !important;
-        border-radius: 14px !important;
     }
-    .hero-header h1 {
-        font-size: 20px !important;
-    }
-    .hero-signal-card {
-        padding: 20px 14px !important;
-        border-radius: 14px !important;
-    }
-    .hero-signal-card div[style*="font-size:42px"] {
-        font-size: 26px !important;
-    }
-    .hero-signal-card div[style*="width:65%"] {
-        width: 92% !important;
-    }
-    .metric-card {
-        padding: 12px 10px !important;
-        margin-bottom: 8px !important;
-    }
-    .metric-value {
-        font-size: 16px !important;
-    }
-    .metric-label {
-        font-size: 10px !important;
-    }
-    /* Horizontally scrollable tabs on mobile screens */
     .stTabs [data-baseweb="tab-list"] {
         overflow-x: auto !important;
         white-space: nowrap !important;
-        -webkit-overflow-scrolling: touch !important;
-        gap: 6px !important;
-        padding: 4px !important;
+        gap: 4px !important;
     }
     .stTabs [data-baseweb="tab"] {
-        padding: 8px 14px !important;
+        padding: 7px 12px !important;
         font-size: 12px !important;
-    }
-    [data-testid="column"] {
-        min-width: 48% !important;
-        flex: 1 1 45% !important;
     }
 }
 </style>
@@ -389,13 +369,16 @@ initialise_db()
 
 
 def render_login_page() -> None:
-    """Render a modern, high-converting login / registration page."""
+    """Render an Institutional Enterprise Access Portal."""
     st.markdown(
         f"""
-        <div style="max-width:600px; margin: 20px auto 30px auto; padding:32px; background:linear-gradient(145deg, rgba(22,30,46,0.95), rgba(13,17,23,0.98)); border:1px solid rgba(88,166,255,0.25); border-radius:24px; box-shadow:0 20px 50px rgba(0,0,0,0.6); text-align:center;">
-            <div style="background:linear-gradient(135deg, #1f6feb, #58a6ff); width:64px; height:64px; border-radius:18px; display:inline-flex; align-items:center; justify-content:center; font-size:32px; box-shadow:0 8px 24px rgba(31,111,235,0.5); margin-bottom:16px;">📈</div>
-            <h2 style="color:#f0f6fc; margin:0 0 8px 0; font-weight:800; font-size:26px;">Welcome to {APP_NAME}</h2>
-            <p style="color:#8b949e; font-size:14px; margin-bottom:0;">{APP_TAGLINE}</p>
+        <div style="max-width:620px; margin: 30px auto 20px auto; padding:36px; background:linear-gradient(145deg, rgba(13,17,23,0.95), rgba(22,27,34,0.98)); border:1px solid rgba(88,166,255,0.3); border-radius:20px; box-shadow:0 24px 60px rgba(0,0,0,0.7); text-align:center;">
+            <div style="display:inline-flex; align-items:center; justify-content:center; width:56px; height:56px; background:linear-gradient(135deg, #1f6feb, #388bfd); border-radius:14px; box-shadow:0 6px 20px rgba(31,111,235,0.4); margin-bottom:16px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div style="font-size:11px; font-weight:700; color:#58a6ff; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:6px;">Enterprise Institutional Access</div>
+            <h2 style="color:#f0f6fc; margin:0 0 8px 0; font-weight:800; font-size:25px; letter-spacing:-0.01em;">{APP_NAME} Terminal</h2>
+            <p style="color:#8b949e; font-size:13.5px; margin-bottom:0;">{APP_TAGLINE}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -405,51 +388,51 @@ def render_login_page() -> None:
     with col2:
         registered_users = get_all_users()
         
-        login_tab1, login_tab2 = st.tabs(["🔐 Quick Sign-In", "📝 First-Time Registration"])
+        login_tab1, login_tab2 = st.tabs(["🔐 Member Access", "📝 New Account Setup"])
         
         with login_tab1:
             if registered_users:
-                st.markdown("##### 👤 Select Previously Saved Account")
+                st.markdown("<div style='font-size:13px; font-weight:700; color:#8b949e; margin-bottom:8px;'>SELECT REGISTERED INSTITUTIONAL PROFILE</div>", unsafe_allow_html=True)
                 user_options = {
-                    f"{u['name']} ({u['email']} | 📞 {u['phone']})": u for u in registered_users
+                    f"{u['name'].upper()} • {u['email']} (Phone: {u['phone']})": u for u in registered_users
                 }
-                selected_user_str = st.selectbox("Select Your Profile", list(user_options.keys()))
-                if st.button("🚀 Enter Dashboard", key="btn_quick_signin", use_container_width=True):
+                selected_user_str = st.selectbox("Registered Accounts", list(user_options.keys()), key="select_user_dropdown")
+                if st.button("🚀 Access Institutional Terminal", key="btn_quick_signin", use_container_width=True, type="primary"):
                     user_data = user_options[selected_user_str]
                     updated_user = create_or_update_user(user_data['name'], user_data['phone'], user_data['email'])
                     st.session_state['user'] = updated_user
                     st.session_state['is_logged_in'] = True
-                    st.success(f"Welcome back, {user_data['name']}!")
-                    time.sleep(0.4)
+                    st.success(f"Authenticated successfully as {user_data['name']}.")
+                    time.sleep(0.3)
                     st.rerun()
             else:
-                st.info("No saved accounts found on this device yet. Please register your details in the next tab.")
+                st.info("No saved accounts found in session audit log. Please set up your credentials below.")
 
-            st.markdown("---")
-            st.markdown("##### 🔍 Or Search by Email or Phone")
-            lookup_query = st.text_input("Enter Registered Email or Phone Number", key="lookup_input")
-            if st.button("Sign In via Email/Phone", key="btn_lookup_signin", use_container_width=True):
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:13px; font-weight:700; color:#8b949e; margin-bottom:8px;'>OR SEARCH VIA EMAIL / PHONE</div>", unsafe_allow_html=True)
+            lookup_query = st.text_input("Email Address or Phone Number", key="lookup_input", placeholder="e.g. trader@institution.com or +91 9876543210")
+            if st.button("Authenticate Profile", key="btn_lookup_signin", use_container_width=True):
                 if lookup_query.strip():
                     found_user = get_user_by_email(lookup_query) or get_user_by_phone(lookup_query)
                     if found_user:
                         updated_user = create_or_update_user(found_user['name'], found_user['phone'], found_user['email'])
                         st.session_state['user'] = updated_user
                         st.session_state['is_logged_in'] = True
-                        st.success(f"Welcome back, {found_user['name']}!")
-                        time.sleep(0.4)
+                        st.success(f"Authenticated as {found_user['name']}.")
+                        time.sleep(0.3)
                         st.rerun()
                     else:
-                        st.error("No account found with that email or phone number. Please register under the 'First-Time Registration' tab.")
+                        st.error("No account record matched that email or phone number.")
                 else:
                     st.warning("Please enter your registered email address or phone number.")
 
         with login_tab2:
-            st.markdown("##### 📝 Create Your Account")
+            st.markdown("<div style='font-size:13px; font-weight:700; color:#8b949e; margin-bottom:8px;'>CREATE ENTERPRISE USER PROFILE</div>", unsafe_allow_html=True)
             with st.form("registration_form"):
-                reg_name = st.text_input("Full Name", placeholder="e.g. Navaneeth Kumar")
-                reg_phone = st.text_input("Phone Number", placeholder="e.g. +91 9876543210")
-                reg_email = st.text_input("Email Address", placeholder="e.g. navaneeth@example.com")
-                submit_reg = st.form_submit_button("✨ Save Details & Start Trading", use_container_width=True)
+                reg_name = st.text_input("Full Legal Name", placeholder="e.g. Navaneeth Kumar")
+                reg_phone = st.text_input("Phone Number (+91)", placeholder="e.g. +91 9876543210")
+                reg_email = st.text_input("Corporate Email Address", placeholder="e.g. navaneeth@firm.com")
+                submit_reg = st.form_submit_button("✨ Register & Launch Terminal", use_container_width=True)
 
                 if submit_reg:
                     if not reg_name.strip():
@@ -462,8 +445,8 @@ def render_login_page() -> None:
                         user_rec = create_or_update_user(reg_name, reg_phone, reg_email)
                         st.session_state['user'] = user_rec
                         st.session_state['is_logged_in'] = True
-                        st.success(f"Account created successfully! Welcome, {user_rec['name']}.")
-                        time.sleep(0.4)
+                        st.success(f"Profile created! Welcome, {user_rec['name']}.")
+                        time.sleep(0.3)
                         st.rerun()
 
 
@@ -483,30 +466,37 @@ with st.sidebar:
     user_display_name = current_user.get("name", "Trader")
     user_email = current_user.get("email", "")
     user_phone = current_user.get("phone", "")
+    
+    # Initials badge
+    name_parts = user_display_name.strip().split()
+    initials = "".join([p[0].upper() for p in name_parts[:2]]) if name_parts else "TR"
 
     st.markdown(
         f"""
-        <div style="background:linear-gradient(135deg, rgba(31,111,235,0.15), rgba(88,166,255,0.05)); border:1px solid rgba(88,166,255,0.2); border-radius:16px; padding:16px 14px; text-align:center; margin-bottom:12px; box-shadow:0 8px 24px rgba(0,0,0,0.3);">
-            <div style="background:linear-gradient(135deg,#1f6feb,#58a6ff); width:44px; height:44px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 6px 20px rgba(31,111,235,0.4); margin-bottom:8px;">📈</div>
-            <div style="font-size:17px; font-weight:800; color:#f0f6fc; letter-spacing:0.02em;">{APP_NAME}</div>
-            <div style="font-size:11px; font-weight:500; color:#8b949e; margin-top:2px;">{APP_TAGLINE}</div>
-        </div>
-        
-        <div style="background:rgba(22,30,46,0.8); border:1px solid rgba(88,166,255,0.15); border-radius:12px; padding:10px 12px; margin-bottom:16px;">
-            <div style="font-size:12px; font-weight:700; color:#58a6ff;">👤 Active Trader:</div>
-            <div style="font-size:13px; font-weight:600; color:#f0f6fc;">{user_display_name}</div>
-            <div style="font-size:10px; color:#8b949e;">{user_email} {('• ' + user_phone) if user_phone else ''}</div>
+        <div style="background:linear-gradient(145deg, rgba(22,27,34,0.9), rgba(13,17,23,0.95)); border:1px solid rgba(88,166,255,0.2); border-radius:14px; padding:16px 14px; margin-bottom:14px; box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <div style="background:linear-gradient(135deg,#1f6feb,#388bfd); width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#FFFFFF; box-shadow:0 4px 12px rgba(31,111,235,0.4); shrink:0;">{initials}</div>
+                <div>
+                    <div style="font-size:13.5px; font-weight:700; color:#f0f6fc; line-height:1.2;">{user_display_name}</div>
+                    <div style="font-size:10px; font-weight:700; color:#58a6ff; letter-spacing:0.06em; margin-top:2px;">INSTITUTIONAL PRO</div>
+                </div>
+            </div>
+            <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06); font-size:11px; color:#8b949e; word-break:break-all;">
+                <div>📧 {user_email if user_email else 'N/A'}</div>
+                {f'<div style="margin-top:2px;">📞 {user_phone}</div>' if user_phone else ''}
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if st.button("🚪 Switch / Logout Account", key="btn_logout_sidebar", use_container_width=True):
+    if st.button("🔓 Logout Account", key="btn_logout_sidebar", use_container_width=True):
         st.session_state["is_logged_in"] = False
         st.session_state["user"] = None
         st.rerun()
 
     st.divider()
+
 
     # ── Stock Selection ──────────────────────────────────────────────────────
     st.markdown("#### 🏦 Stock Selection")
@@ -827,8 +817,9 @@ def _generate_ai_explanation(result, risk) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 tab_signal, tab_chart, tab_backtest, tab_scanner, tab_watchlist, tab_research, tab_alerts = st.tabs(
-    ["🎯 Signal", "📊 Chart", "⚡ Backtest", "🔍 Scanner", "⭐ Watchlist & History", "🏛️ Institutional Research (Gemini/LLM)", "🔔 Alerts"]
+    ["📊 Signal Terminal", "📈 Technical Analysis", "🧪 Quant Backtest", "🌐 Market Breadth & Scanner", "📋 Watchlist & Audit Trail", "🏛️ Institutional Equity Research", "🔔 Real-Time Alert Manager"]
 )
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
