@@ -265,34 +265,47 @@ html, body, [class*="css"] {
     border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
+/* ── Remove Streamlit Default Tab Red/Pink Underline & Highlight ── */
+div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
+    display: none !important;
+    background-color: transparent !important;
+    height: 0px !important;
+}
+
 /* ── Modern Enterprise Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    background: rgba(13, 17, 23, 0.8);
-    padding: 6px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    margin-bottom: 22px;
+    gap: 6px !important;
+    background: rgba(13, 17, 23, 0.95) !important;
+    padding: 6px 8px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(88, 166, 255, 0.18) !important;
+    margin-bottom: 22px !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .stTabs [data-baseweb="tab"] {
-    background: transparent;
-    border-radius: 8px;
-    padding: 9px 18px;
-    font-weight: 600;
-    font-size: 13px;
-    color: #8b949e;
-    border: none !important;
-    transition: all 0.2s ease;
+    background: transparent !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-weight: 700 !important;
+    font-size: 11.5px !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+    color: #8b949e !important;
+    border: 1px solid transparent !important;
+    transition: all 0.2s ease !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
-    color: #f0f6fc;
-    background: rgba(255, 255, 255, 0.04);
+    color: #f0f6fc !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%) !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(31, 111, 235, 0.35) !important;
+    background: linear-gradient(135deg, rgba(31, 111, 235, 0.3) 0%, rgba(56, 139, 253, 0.2) 100%) !important;
+    color: #58a6ff !important;
+    border: 1px solid rgba(88, 166, 255, 0.4) !important;
+    box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
 }
+
 
 /* ── Buttons ── */
 .stButton > button {
@@ -388,7 +401,7 @@ def render_login_page() -> None:
     with col2:
         registered_users = get_all_users()
         
-        login_tab1, login_tab2 = st.tabs(["🔐 Member Access", "📝 New Account Setup"])
+        login_tab1, login_tab2 = st.tabs(["MEMBER ACCESS", "NEW ACCOUNT SETUP"])
         
         with login_tab1:
             if registered_users:
@@ -397,7 +410,7 @@ def render_login_page() -> None:
                     f"{u['name'].upper()} • {u['email']} (Phone: {u['phone']})": u for u in registered_users
                 }
                 selected_user_str = st.selectbox("Registered Accounts", list(user_options.keys()), key="select_user_dropdown")
-                if st.button("🚀 Access Institutional Terminal", key="btn_quick_signin", use_container_width=True, type="primary"):
+                if st.button("ACCESS INSTITUTIONAL TERMINAL", key="btn_quick_signin", use_container_width=True, type="primary"):
                     user_data = user_options[selected_user_str]
                     updated_user = create_or_update_user(user_data['name'], user_data['phone'], user_data['email'])
                     st.session_state['user'] = updated_user
@@ -432,7 +445,8 @@ def render_login_page() -> None:
                 reg_name = st.text_input("Full Legal Name", placeholder="e.g. Navaneeth Kumar")
                 reg_phone = st.text_input("Phone Number (+91)", placeholder="e.g. +91 9876543210")
                 reg_email = st.text_input("Corporate Email Address", placeholder="e.g. navaneeth@firm.com")
-                submit_reg = st.form_submit_button("✨ Register & Launch Terminal", use_container_width=True)
+                submit_reg = st.form_submit_button("REGISTER & LAUNCH TERMINAL", use_container_width=True)
+
 
                 if submit_reg:
                     if not reg_name.strip():
@@ -490,7 +504,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    if st.button("🔓 Logout Account", key="btn_logout_sidebar", use_container_width=True):
+    if st.button("Logout / Switch Profile", key="btn_logout_sidebar", use_container_width=True):
         st.session_state["is_logged_in"] = False
         st.session_state["user"] = None
         st.rerun()
@@ -499,7 +513,7 @@ with st.sidebar:
 
 
     # ── Stock Selection ──────────────────────────────────────────────────────
-    st.markdown("#### 🏦 Stock Selection")
+    st.markdown("<div class='section-header'>STOCK SELECTION</div>", unsafe_allow_html=True)
 
     # Build symbol→name mapping for display
     all_stocks = ALL_STOCKS
@@ -529,7 +543,7 @@ with st.sidebar:
     st.divider()
 
     # ── Timeframe ────────────────────────────────────────────────────────────
-    st.markdown("#### ⏱ Timeframe")
+    st.markdown("<div class='section-header'>TIMEFRAME & PERIOD</div>", unsafe_allow_html=True)
     interval_label = st.selectbox("Interval", list(SUPPORTED_INTERVALS.keys()), index=0)
     interval = SUPPORTED_INTERVALS[interval_label]
 
@@ -561,7 +575,7 @@ with st.sidebar:
     st.divider()
 
     # ── Indicators Toggle ────────────────────────────────────────────────────
-    st.markdown("#### 📊 Chart Overlays")
+    st.markdown("<div class='section-header'>TECHNICAL OVERLAYS</div>", unsafe_allow_html=True)
     show_ema = st.checkbox("EMA (20/50/200)", value=True)
     show_supertrend = st.checkbox("Supertrend", value=True)
     show_bollinger = st.checkbox("Bollinger Bands", value=True)
@@ -573,7 +587,7 @@ with st.sidebar:
     st.divider()
 
     # ── Risk Settings ────────────────────────────────────────────────────────
-    st.markdown("#### 💰 Risk Settings")
+    st.markdown("<div class='section-header'>RISK PARAMETERS</div>", unsafe_allow_html=True)
     capital = st.number_input(
         "Capital (₹)",
         min_value=10_000,
@@ -587,17 +601,18 @@ with st.sidebar:
     st.divider()
 
     # ── Auto Refresh ─────────────────────────────────────────────────────────
-    st.markdown("#### 🔄 Auto Refresh")
+    st.markdown("<div class='section-header'>AUTO REFRESH ENGINE</div>", unsafe_allow_html=True)
     auto_refresh = st.toggle("Enable Auto Refresh", value=False)
     if auto_refresh:
         refresh_interval = st.slider("Refresh every (seconds)", 30, 600, 60, 30)
 
     # ── Load Button ──────────────────────────────────────────────────────────
     st.divider()
-    load_clicked = st.button("🚀 Analyse Stock", type="primary", use_container_width=True)
+    load_clicked = st.button("RUN QUANT ANALYSIS", type="primary", use_container_width=True)
 
     # ── Alerts Config ────────────────────────────────────────────────────────
-    with st.expander("🔔 Alert Settings"):
+    with st.expander("Alert Channels & Notifications"):
+
         tg_token = st.text_input("Telegram Bot Token", type="password", value=os.getenv("TELEGRAM_BOT_TOKEN", ""))
         tg_chat = st.text_input("Telegram Chat ID", value=os.getenv("TELEGRAM_CHAT_ID", ""))
         email_from = st.text_input("Email (From)", value=os.getenv("EMAIL_SENDER", ""))
@@ -817,7 +832,7 @@ def _generate_ai_explanation(result, risk) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 tab_signal, tab_chart, tab_backtest, tab_scanner, tab_watchlist, tab_research, tab_alerts = st.tabs(
-    ["📊 Signal Terminal", "📈 Technical Analysis", "🧪 Quant Backtest", "🌐 Market Breadth & Scanner", "📋 Watchlist & Audit Trail", "🏛️ Institutional Equity Research", "🔔 Real-Time Alert Manager"]
+    ["SIGNAL TERMINAL", "TECHNICAL ANALYSIS", "QUANT BACKTEST", "MARKET SCANNER", "WATCHLIST & AUDIT LOGS", "INSTITUTIONAL RESEARCH", "ALERT MANAGER"]
 )
 
 
@@ -830,17 +845,19 @@ with tab_signal:
     if st.session_state.signal_result is None:
         st.markdown(
             """
-            <div style="text-align:center;padding:80px 20px;">
-                <div style="font-size:64px;margin-bottom:20px;">🚀</div>
-                <h2 style="color:#58a6ff;">Ready to Analyse</h2>
-                <p style="color:#8b949e;font-size:15px;">
-                    Select a stock in the sidebar and click <strong>Analyse Stock</strong>
-                    to generate AI-powered trading signals.
+            <div style="text-align:center; padding:70px 20px; max-width:650px; margin:30px auto; background:linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)); border:1px solid rgba(88,166,255,0.2); border-radius:18px; box-shadow:0 16px 40px rgba(0,0,0,0.5);">
+                <div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; background:rgba(56,139,253,0.12); border:1px solid rgba(56,139,253,0.3); border-radius:16px; margin-bottom:18px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                </div>
+                <h2 style="color:#f0f6fc; font-size:22px; font-weight:800; margin:0 0 8px 0; letter-spacing:-0.01em;">QUANTITATIVE SIGNAL TERMINAL</h2>
+                <p style="color:#8b949e; font-size:13.5px; line-height:1.6; margin:0;">
+                    Select an Indian equity ticker from the left sidebar and click <strong>RUN QUANT ANALYSIS</strong> to execute multi-timeframe indicator computation, signal scoring, and risk management scenarios.
                 </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
+
     else:
         result = st.session_state.signal_result
         risk = st.session_state.risk

@@ -330,9 +330,10 @@ SIGNAL_COLORS = {
 }
 
 SIGNAL_EMOJI = {
-    "Strong Buy": "🚀",
-    "Buy": "📈",
-    "Hold": "⏸️",
-    "Sell": "📉",
-    "Strong Sell": "🔻",
+    "Strong Buy": "▲▲",
+    "Buy": "▲",
+    "Hold": "●",
+    "Sell": "▼",
+    "Strong Sell": "▼▼",
 }
+
