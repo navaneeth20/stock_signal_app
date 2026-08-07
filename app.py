@@ -268,8 +268,9 @@ html, body, [class*="css"] {
 /* ── Remove Streamlit Default Tab Red/Pink Underline & Highlight ── */
 div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
     display: none !important;
-    background-color: transparent !important;
+    visibility: hidden !important;
     height: 0px !important;
+    background-color: transparent !important;
 }
 
 /* ── Modern Enterprise Tabs ── */
@@ -290,21 +291,30 @@ div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
     font-size: 11.5px !important;
     letter-spacing: 0.06em !important;
     text-transform: uppercase !important;
-    color: #8b949e !important;
+    color: #94a3b8 !important;
     border: 1px solid transparent !important;
     transition: all 0.2s ease !important;
+}
+.stTabs [data-baseweb="tab"] *, .stTabs [data-baseweb="tab"] p, .stTabs [data-baseweb="tab"] span {
+    color: inherit !important;
+    font-weight: 700 !important;
+    font-size: 11.5px !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
     color: #f0f6fc !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
 }
-.stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, rgba(31, 111, 235, 0.3) 0%, rgba(56, 139, 253, 0.2) 100%) !important;
+.stTabs [aria-selected="true"], .stTabs [data-baseweb="tab"][aria-selected="true"] {
+    background: linear-gradient(135deg, rgba(31, 111, 235, 0.4) 0%, rgba(56, 139, 253, 0.3) 100%) !important;
     color: #58a6ff !important;
     border: 1px solid rgba(88, 166, 255, 0.4) !important;
     box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
 }
+.stTabs [aria-selected="true"] *, .stTabs [aria-selected="true"] p, .stTabs [aria-selected="true"] span {
+    color: #58a6ff !important;
+}
+
 
 
 /* ── Buttons ── */
@@ -519,26 +529,103 @@ with st.sidebar:
         st.markdown(
             """
             <style>
-            .stApp { background-color: #F8FAFC !important; background-image: none !important; color: #0F172A !important; }
-            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #E2E8F0 !important; }
-            .hero-header { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 4px 20px rgba(0,0,0,0.05) !important; }
-            .hero-header h1 { color: #0F172A !important; background: none !important; -webkit-text-fill-color: #0F172A !important; }
-            .hero-header p { color: #475569 !important; }
-            .hero-signal-card { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 8px 30px rgba(0,0,0,0.06) !important; }
-            .hero-signal-card div { color: #0F172A !important; }
-            .metric-card { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.04) !important; }
-            .metric-label { color: #64748B !important; }
-            .metric-value { color: #0F172A !important; }
-            .section-header { color: #1E3A8A !important; border-bottom: 1px solid #CBD5E1 !important; }
-            .stTabs [data-baseweb="tab-list"] { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; }
-            .stTabs [data-baseweb="tab"] { color: #64748B !important; }
-            .stTabs [data-baseweb="tab"]:hover { color: #0F172A !important; background: #F1F5F9 !important; }
-            .stTabs [aria-selected="true"] { background: #2563EB !important; color: #FFFFFF !important; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important; }
-            div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background-color: #FFFFFF !important; border-color: #CBD5E1 !important; color: #0F172A !important; }
+            /* ── TailAdmin Light Theme Overrides ── */
+            .stApp {
+                background-color: #F8FAFC !important;
+                background-image: none !important;
+                color: #0F172A !important;
+            }
+            [data-testid="stSidebar"] {
+                background-color: #FFFFFF !important;
+                border-right: 1px solid #E2E8F0 !important;
+            }
+            .hero-header {
+                background: #FFFFFF !important;
+                border: 1px solid #E2E8F0 !important;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+                color: #0F172A !important;
+            }
+            .hero-header h1 {
+                color: #0F172A !important;
+                background: none !important;
+                -webkit-text-fill-color: #0F172A !important;
+            }
+            .hero-header p {
+                color: #475569 !important;
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                background: #FFFFFF !important;
+                border: 1px solid #CBD5E1 !important;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+            }
+            .stTabs [data-baseweb="tab"] {
+                color: #475569 !important;
+                background: transparent !important;
+            }
+            .stTabs [data-baseweb="tab"] *, .stTabs [data-baseweb="tab"] p, .stTabs [data-baseweb="tab"] span {
+                color: #475569 !important;
+            }
+            .stTabs [data-baseweb="tab"]:hover {
+                color: #0F172A !important;
+                background: #F1F5F9 !important;
+            }
+            .stTabs [data-baseweb="tab"]:hover *, .stTabs [data-baseweb="tab"]:hover p, .stTabs [data-baseweb="tab"]:hover span {
+                color: #0F172A !important;
+            }
+            .stTabs [aria-selected="true"], .stTabs [data-baseweb="tab"][aria-selected="true"] {
+                background: #2563EB !important;
+                color: #FFFFFF !important;
+                box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+            }
+            .stTabs [aria-selected="true"] *, .stTabs [aria-selected="true"] p, .stTabs [aria-selected="true"] span {
+                color: #FFFFFF !important;
+            }
+            .section-header {
+                color: #1E3A8A !important;
+                border-bottom: 2px solid #E2E8F0 !important;
+                font-weight: 800 !important;
+            }
+            .hero-signal-card {
+                background: #FFFFFF !important;
+                border: 1px solid #E2E8F0 !important;
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05) !important;
+                color: #0F172A !important;
+            }
+            .hero-signal-card div {
+                color: #0F172A !important;
+            }
+            .metric-card {
+                background: #FFFFFF !important;
+                border: 1px solid #E2E8F0 !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+            }
+            .metric-label {
+                color: #64748B !important;
+                font-weight: 700 !important;
+            }
+            .metric-value {
+                color: #0F172A !important;
+                font-weight: 800 !important;
+            }
+            div[data-testid="stAlert"] {
+                background-color: #EFF6FF !important;
+                border: 1px solid #BFDBFE !important;
+                color: #1E40AF !important;
+                border-radius: 12px !important;
+            }
+            div[data-testid="stAlert"] * {
+                color: #1E40AF !important;
+            }
+            div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
+                background-color: #FFFFFF !important;
+                border-color: #CBD5E1 !important;
+                color: #0F172A !important;
+            }
             </style>
             """,
             unsafe_allow_html=True,
         )
+
 
     st.divider()
 
