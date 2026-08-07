@@ -925,19 +925,26 @@ with tab_signal:
         # ── Price Performance & Peak Risk Assessment ─────────────────────────
         st.markdown('<div class="section-header">PRICE PERFORMANCE & PEAK RISK ASSESSMENT</div>', unsafe_allow_html=True)
 
+        pct_1w = getattr(result, "pct_1w", 0.0)
+        pct_2w = getattr(result, "pct_2w", 0.0)
+        pct_1m = getattr(result, "pct_1m", 0.0)
+        dist_52w_high = getattr(result, "dist_52w_high", 0.0)
+        is_extended = getattr(result, "is_extended", False)
+        extended_warning = getattr(result, "extended_warning", "")
+
         p1, p2, p3, p4, p5 = st.columns(5)
 
-        color_1w = "#00e676" if result.pct_1w >= 0 else "#ff1744"
-        color_2w = "#00e676" if result.pct_2w >= 0 else "#ff1744"
-        color_1m = "#00e676" if result.pct_1m >= 0 else "#ff1744"
-        color_52w = "#ffb300" if result.dist_52w_high <= 3.0 else "#58a6ff"
+        color_1w = "#00e676" if pct_1w >= 0 else "#ff1744"
+        color_2w = "#00e676" if pct_2w >= 0 else "#ff1744"
+        color_1m = "#00e676" if pct_1m >= 0 else "#ff1744"
+        color_52w = "#ffb300" if dist_52w_high <= 3.0 else "#58a6ff"
 
         perf_metrics = [
             (p1, "1-Day Change", f"{price_change:+.2f}%", change_fg),
-            (p2, "1-Week Change (5D)", f"{result.pct_1w:+.2f}%", color_1w),
-            (p3, "2-Week Change (10D)", f"{result.pct_2w:+.2f}%", color_2w),
-            (p4, "1-Month Change (21D)", f"{result.pct_1m:+.2f}%", color_1m),
-            (p5, "Below 52W High", f"{result.dist_52w_high:.1f}%", color_52w),
+            (p2, "1-Week Change (5D)", f"{pct_1w:+.2f}%", color_1w),
+            (p3, "2-Week Change (10D)", f"{pct_2w:+.2f}%", color_2w),
+            (p4, "1-Month Change (21D)", f"{pct_1m:+.2f}%", color_1m),
+            (p5, "Below 52W High", f"{dist_52w_high:.1f}%", color_52w),
         ]
 
         for col, label, value, color in perf_metrics:
@@ -951,15 +958,15 @@ with tab_signal:
                 unsafe_allow_html=True,
             )
 
-        if result.extended_warning:
-            alert_color = "#ff1744" if result.is_extended else "#ffb300"
-            alert_border = "rgba(255,23,68,0.4)" if result.is_extended else "rgba(255,179,0,0.4)"
-            alert_bg = "rgba(255,23,68,0.12)" if result.is_extended else "rgba(255,179,0,0.12)"
+        if extended_warning:
+            alert_color = "#ff1744" if is_extended else "#ffb300"
+            alert_border = "rgba(255,23,68,0.4)" if is_extended else "rgba(255,179,0,0.4)"
+            alert_bg = "rgba(255,23,68,0.12)" if is_extended else "rgba(255,179,0,0.12)"
             st.markdown(
                 f"""
                 <div style="background:{alert_bg}; border:1px solid {alert_border}; border-radius:12px; padding:12px 18px; margin-top:12px; margin-bottom:18px;">
                     <div style="font-size:13px; font-weight:600; color:{alert_color};">
-                        <strong>⚠️ Peak Risk Warning:</strong> {result.extended_warning}
+                        <strong>⚠️ Peak Risk Warning:</strong> {extended_warning}
                     </div>
                 </div>
                 """,
@@ -967,6 +974,7 @@ with tab_signal:
             )
 
         st.markdown("<br>", unsafe_allow_html=True)
+
 
 
         # ── MTF Alignment Matrix Card ──────────────────────────────────────
@@ -1454,24 +1462,25 @@ with tab_scanner:
                     enriched = compute_all_indicators(raw)
                     sig_r = generate_signal(sym, enriched)
                     last = enriched.iloc[-1]
-                    prev = enriched.iloc[-2] if len(enriched) > 1 else last
-                    chg = pct_change(float(prev["Close"]), float(last["Close"]))
+                    p1w = getattr(sig_r, "pct_1w", 0.0)
+                    p2w = getattr(sig_r, "pct_2w", 0.0)
 
                     results_list.append({
                         "Symbol": sym,
                         "Name": stock["name"],
                         "Price": f"₹{last['Close']:,.2f}",
                         "Change%": f"{chg:+.2f}%",
-                        "1W_Chg": f"{sig_r.pct_1w:+.2f}%",
-                        "2W_Chg": f"{sig_r.pct_2w:+.2f}%",
+                        "1W_Chg": f"{p1w:+.2f}%",
+                        "2W_Chg": f"{p2w:+.2f}%",
                         "Signal": sig_r.signal,
                         "Confidence": sig_r.confidence,
                         "RSI": float(last.get("RSI", 0)) if pd.notna(last.get("RSI", None)) else 0.0,
                         "ADX": float(last.get("ADX", 0)) if pd.notna(last.get("ADX", None)) else 0.0,
                         "raw_change": chg,
-                        "raw_1w": sig_r.pct_1w,
-                        "raw_2w": sig_r.pct_2w,
+                        "raw_1w": p1w,
+                        "raw_2w": p2w,
                     })
+
                 except Exception:
                     pass
 
