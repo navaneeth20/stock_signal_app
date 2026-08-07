@@ -922,6 +922,53 @@ with tab_signal:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # ── Price Performance & Peak Risk Assessment ─────────────────────────
+        st.markdown('<div class="section-header">PRICE PERFORMANCE & PEAK RISK ASSESSMENT</div>', unsafe_allow_html=True)
+
+        p1, p2, p3, p4, p5 = st.columns(5)
+
+        color_1w = "#00e676" if result.pct_1w >= 0 else "#ff1744"
+        color_2w = "#00e676" if result.pct_2w >= 0 else "#ff1744"
+        color_1m = "#00e676" if result.pct_1m >= 0 else "#ff1744"
+        color_52w = "#ffb300" if result.dist_52w_high <= 3.0 else "#58a6ff"
+
+        perf_metrics = [
+            (p1, "1-Day Change", f"{price_change:+.2f}%", change_fg),
+            (p2, "1-Week Change (5D)", f"{result.pct_1w:+.2f}%", color_1w),
+            (p3, "2-Week Change (10D)", f"{result.pct_2w:+.2f}%", color_2w),
+            (p4, "1-Month Change (21D)", f"{result.pct_1m:+.2f}%", color_1m),
+            (p5, "Below 52W High", f"{result.dist_52w_high:.1f}%", color_52w),
+        ]
+
+        for col, label, value, color in perf_metrics:
+            col.markdown(
+                f"""
+                <div class="metric-card" style="border-top: 3px solid {color};">
+                    <div class="metric-label">{label}</div>
+                    <div class="metric-value" style="color:{color};">{value}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        if result.extended_warning:
+            alert_color = "#ff1744" if result.is_extended else "#ffb300"
+            alert_border = "rgba(255,23,68,0.4)" if result.is_extended else "rgba(255,179,0,0.4)"
+            alert_bg = "rgba(255,23,68,0.12)" if result.is_extended else "rgba(255,179,0,0.12)"
+            st.markdown(
+                f"""
+                <div style="background:{alert_bg}; border:1px solid {alert_border}; border-radius:12px; padding:12px 18px; margin-top:12px; margin-bottom:18px;">
+                    <div style="font-size:13px; font-weight:600; color:{alert_color};">
+                        <strong>⚠️ Peak Risk Warning:</strong> {result.extended_warning}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+
         # ── MTF Alignment Matrix Card ──────────────────────────────────────
         if hasattr(result, "mtf_result") and result.mtf_result:
             mtf = result.mtf_result
@@ -1415,11 +1462,15 @@ with tab_scanner:
                         "Name": stock["name"],
                         "Price": f"₹{last['Close']:,.2f}",
                         "Change%": f"{chg:+.2f}%",
+                        "1W_Chg": f"{sig_r.pct_1w:+.2f}%",
+                        "2W_Chg": f"{sig_r.pct_2w:+.2f}%",
                         "Signal": sig_r.signal,
                         "Confidence": sig_r.confidence,
                         "RSI": float(last.get("RSI", 0)) if pd.notna(last.get("RSI", None)) else 0.0,
                         "ADX": float(last.get("ADX", 0)) if pd.notna(last.get("ADX", None)) else 0.0,
                         "raw_change": chg,
+                        "raw_1w": sig_r.pct_1w,
+                        "raw_2w": sig_r.pct_2w,
                     })
                 except Exception:
                     pass
@@ -1475,6 +1526,8 @@ with tab_scanner:
                 for idx, item in enumerate(filtered_list):
                     sig_c = SIGNAL_COLORS.get(item["Signal"], "#9e9e9e")
                     chg_c = "#00e676" if item["raw_change"] >= 0 else "#ff1744"
+                    chg_1w_c = "#00e676" if item.get("raw_1w", 0) >= 0 else "#ff1744"
+                    chg_2w_c = "#00e676" if item.get("raw_2w", 0) >= 0 else "#ff1744"
 
                     col_info, col_act = st.columns([4, 1])
                     with col_info:
@@ -1485,9 +1538,11 @@ with tab_scanner:
                                     <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:14px;">{item['Symbol']}</span>
                                     <span style="font-size:12px; color:#8b949e;">{item['Name']}</span>
                                 </div>
-                                <div style="display:flex; align-items:center; gap:16px;">
+                                <div style="display:flex; align-items:center; gap:14px;">
                                     <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:13px;">{item['Price']}</span>
-                                    <span class="mono-font" style="font-size:12px; color:{chg_c}; font-weight:600;">{item['Change%']}</span>
+                                    <span class="mono-font" style="font-size:12px; color:{chg_c}; font-weight:600;">1D: {item['Change%']}</span>
+                                    <span class="mono-font" style="font-size:12px; color:{chg_1w_c}; font-weight:600;">1W: {item.get('1W_Chg', '0.00%')}</span>
+                                    <span class="mono-font" style="font-size:12px; color:{chg_2w_c}; font-weight:600;">2W: {item.get('2W_Chg', '0.00%')}</span>
                                     <span style="font-size:11px; font-weight:700; color:{sig_c}; background:{sig_c}22; padding:2px 8px; border-radius:8px;">{item['Signal']}</span>
                                     <span class="mono-font" style="font-size:12px; color:#58a6ff; font-weight:700;">{item['Confidence']:.1f}%</span>
                                 </div>
@@ -1495,6 +1550,7 @@ with tab_scanner:
                             """,
                             unsafe_allow_html=True,
                         )
+
                     with col_act:
                         if st.button(f"⚡ Analyse", key=f"scan_btn_{idx}_{item['Symbol']}"):
                             load_and_analyse(item['Symbol'])

@@ -64,7 +64,75 @@ class SignalResult:
     mtf_result: Optional[Any] = None
     news_result: Optional[Any] = None
     mc_result: Optional[Any] = None
+    pct_1w: float = 0.0
+    pct_2w: float = 0.0
+    pct_1m: float = 0.0
+    dist_52w_high: float = 0.0
+    is_extended: bool = False
+    extended_warning: str = ""
 
+
+def compute_price_performance(df: pd.DataFrame) -> dict:
+    """
+    Compute multi-period price performance metrics:
+    - 1-Week % change (5 trading days)
+    - 2-Week % change (10 trading days)
+    - 1-Month % change (21 trading days)
+    - Distance to 52-Week High (%)
+    - Extended move / peak risk evaluation
+    """
+    if df.empty or len(df) < 5:
+        return {
+            "pct_1w": 0.0,
+            "pct_2w": 0.0,
+            "pct_1m": 0.0,
+            "dist_52w_high": 0.0,
+            "is_extended": False,
+            "warning": "",
+        }
+
+    close = df["Close"]
+    latest = float(close.iloc[-1])
+
+    # 1-Week (5 trading days ago)
+    idx_1w = max(0, len(df) - 6)
+    p_1w = float(close.iloc[idx_1w])
+    pct_1w = ((latest - p_1w) / p_1w) * 100.0 if p_1w > 0 else 0.0
+
+    # 2-Week (10 trading days ago)
+    idx_2w = max(0, len(df) - 11)
+    p_2w = float(close.iloc[idx_2w])
+    pct_2w = ((latest - p_2w) / p_2w) * 100.0 if p_2w > 0 else 0.0
+
+    # 1-Month (21 trading days ago)
+    idx_1m = max(0, len(df) - 22)
+    p_1m = float(close.iloc[idx_1m])
+    pct_1m = ((latest - p_1m) / p_1m) * 100.0 if p_1m > 0 else 0.0
+
+    # 52-Week High Proximity (last 252 bars max)
+    high_col = df["High"] if "High" in df.columns else close
+    window_52w = high_col.iloc[-min(252, len(df)):]
+    high_52w = float(window_52w.max())
+    dist_52w_high = ((high_52w - latest) / high_52w) * 100.0 if high_52w > 0 else 0.0
+
+    # Over-extended move evaluation
+    is_extended = False
+    warning = ""
+
+    if pct_2w >= 10.0 or (pct_1w >= 6.0 and dist_52w_high <= 2.0):
+        is_extended = True
+        warning = f"Over-extended move warning: Stock is up +{pct_2w:.1f}% over the last 2 weeks ({dist_52w_high:.1f}% below 52W high). High risk of buying near peak."
+    elif pct_2w >= 6.0:
+        warning = f"Moderate rally: Stock has gained +{pct_2w:.1f}% in 2 weeks. Monitor for potential short-term resistance."
+
+    return {
+        "pct_1w": pct_1w,
+        "pct_2w": pct_2w,
+        "pct_1m": pct_1m,
+        "dist_52w_high": dist_52w_high,
+        "is_extended": is_extended,
+        "warning": warning,
+    }
 
 
 def _compute_signal_age(df: pd.DataFrame) -> int:
@@ -157,6 +225,9 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
         "vwap": vwap_s,
     }
 
+    # Compute multi-period price performance & peak risk
+    perf = compute_price_performance(df)
+
     # Score
     score_result = compute_score(indicator_signals)
     confidence = score_result["confidence"]
@@ -166,6 +237,16 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
     all_reasons: list[str] = []
     for key, sig in indicator_signals.items():
         all_reasons.extend(sig.get("reasons", []))
+
+    # Over-extended move safeguard adjustment
+    if perf["is_extended"] and signal_label in ("Strong Buy", "Buy"):
+        confidence = max(0.0, confidence - 12.0)
+        new_label = label_from_score(confidence)
+        if new_label != signal_label:
+            all_reasons.append(f"⚠️ Signal downgraded from {signal_label} to {new_label} due to extended 2-week runup (+{perf['pct_2w']:.1f}% near peak).")
+            signal_label = new_label
+        else:
+            all_reasons.append(f"⚠️ Confidence adjusted (-12%) due to extended 2-week runup (+{perf['pct_2w']:.1f}% near peak).")
 
     # Risk levels (based on last ATR)
     last = df.iloc[-1]
@@ -180,7 +261,7 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
     signal_age = _compute_signal_age(df)
     horizon = "3–7 Trading Days" if signal_label in ("Strong Buy", "Strong Sell") else "7–15 Trading Days"
 
-    logger.info("Signal for %s: %s (%.1f%%, %d days active)", symbol, signal_label, confidence, signal_age)
+    logger.info("Signal for %s: %s (%.1f%%, %d days active, 2W %+.1f%%)", symbol, signal_label, confidence, signal_age, perf["pct_2w"])
 
     return SignalResult(
         symbol=symbol,
@@ -195,5 +276,12 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
         df=df,
         signal_age_days=signal_age,
         recommended_horizon=horizon,
+        pct_1w=perf["pct_1w"],
+        pct_2w=perf["pct_2w"],
+        pct_1m=perf["pct_1m"],
+        dist_52w_high=perf["dist_52w_high"],
+        is_extended=perf["is_extended"],
+        extended_warning=perf["warning"],
     )
+
 
