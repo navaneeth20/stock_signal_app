@@ -511,6 +511,38 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Theme Selector ───────────────────────────────────────────────────────
+    st.markdown("<div class='section-header'>INTERFACE THEME</div>", unsafe_allow_html=True)
+    theme_choice = st.radio("UI Theme", ["🌙 Institutional Dark", "☀️ TailAdmin Light Dashboard"], horizontal=True, key="theme_radio")
+
+    if theme_choice == "☀️ TailAdmin Light Dashboard":
+        st.markdown(
+            """
+            <style>
+            .stApp { background-color: #F8FAFC !important; background-image: none !important; color: #0F172A !important; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #E2E8F0 !important; }
+            .hero-header { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 4px 20px rgba(0,0,0,0.05) !important; }
+            .hero-header h1 { color: #0F172A !important; background: none !important; -webkit-text-fill-color: #0F172A !important; }
+            .hero-header p { color: #475569 !important; }
+            .hero-signal-card { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 8px 30px rgba(0,0,0,0.06) !important; }
+            .hero-signal-card div { color: #0F172A !important; }
+            .metric-card { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.04) !important; }
+            .metric-label { color: #64748B !important; }
+            .metric-value { color: #0F172A !important; }
+            .section-header { color: #1E3A8A !important; border-bottom: 1px solid #CBD5E1 !important; }
+            .stTabs [data-baseweb="tab-list"] { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; }
+            .stTabs [data-baseweb="tab"] { color: #64748B !important; }
+            .stTabs [data-baseweb="tab"]:hover { color: #0F172A !important; background: #F1F5F9 !important; }
+            .stTabs [aria-selected="true"] { background: #2563EB !important; color: #FFFFFF !important; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important; }
+            div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background-color: #FFFFFF !important; border-color: #CBD5E1 !important; color: #0F172A !important; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+
 
     # ── Stock Selection ──────────────────────────────────────────────────────
     st.markdown("<div class='section-header'>STOCK SELECTION</div>", unsafe_allow_html=True)
@@ -1445,7 +1477,8 @@ with tab_scanner:
             default=["Strong Buy", "Buy"],
             key="scan_filter_select",
         )
-        scan_min_confidence = st.slider("Min Confidence %", 0, 100, 55, key="scan_conf_slider")
+        scan_min_confidence = st.slider("Min Confidence %", 0, 100, 35, key="scan_conf_slider")
+        scan_display_limit = st.slider("Display Limit (Top Stocks)", 10, 100, 20, step=10, key="scan_limit_slider")
         run_scan = st.button("🔍 Scan Overall Market", type="primary", use_container_width=True, key="run_scan_btn")
 
     with sc_col2:
@@ -1462,6 +1495,8 @@ with tab_scanner:
                     enriched = compute_all_indicators(raw)
                     sig_r = generate_signal(sym, enriched)
                     last = enriched.iloc[-1]
+                    prev = enriched.iloc[-2] if len(enriched) > 1 else last
+                    chg = pct_change(float(prev["Close"]), float(last["Close"]))
                     p1w = getattr(sig_r, "pct_1w", 0.0)
                     p2w = getattr(sig_r, "pct_2w", 0.0)
 
@@ -1481,8 +1516,8 @@ with tab_scanner:
                         "raw_2w": p2w,
                     })
 
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Scanner error for %s: %s", sym, exc)
 
             progress.empty()
             st.session_state.scan_results = results_list
@@ -1528,37 +1563,42 @@ with tab_scanner:
                 if (not scan_filter or r["Signal"] in scan_filter) and r["Confidence"] >= scan_min_confidence
             ]
 
-            if not filtered_list:
-                st.warning(f"No stocks matched criteria in {scan_index_label} (Min Confidence: {scan_min_confidence}%). Try lowering min confidence slider.")
+            if len(filtered_list) >= scan_display_limit:
+                display_items = sorted(filtered_list, key=lambda x: x["Confidence"], reverse=True)[:scan_display_limit]
+            elif filtered_list:
+                display_items = sorted(filtered_list, key=lambda x: x["Confidence"], reverse=True)
             else:
-                st.markdown(f"#### 🎯 Matching Market Opportunities ({len(filtered_list)} found)")
-                for idx, item in enumerate(filtered_list):
-                    sig_c = SIGNAL_COLORS.get(item["Signal"], "#9e9e9e")
-                    chg_c = "#00e676" if item["raw_change"] >= 0 else "#ff1744"
-                    chg_1w_c = "#00e676" if item.get("raw_1w", 0) >= 0 else "#ff1744"
-                    chg_2w_c = "#00e676" if item.get("raw_2w", 0) >= 0 else "#ff1744"
+                display_items = sorted(results_list, key=lambda x: x["Confidence"], reverse=True)[:scan_display_limit]
 
-                    col_info, col_act = st.columns([4, 1])
-                    with col_info:
-                        st.markdown(
-                            f"""
-                            <div class="metric-card" style="border-left:4px solid {sig_c}; padding:10px 16px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
-                                <div style="display:flex; align-items:center; gap:12px;">
-                                    <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:14px;">{item['Symbol']}</span>
-                                    <span style="font-size:12px; color:#8b949e;">{item['Name']}</span>
-                                </div>
-                                <div style="display:flex; align-items:center; gap:14px;">
-                                    <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:13px;">{item['Price']}</span>
-                                    <span class="mono-font" style="font-size:12px; color:{chg_c}; font-weight:600;">1D: {item['Change%']}</span>
-                                    <span class="mono-font" style="font-size:12px; color:{chg_1w_c}; font-weight:600;">1W: {item.get('1W_Chg', '0.00%')}</span>
-                                    <span class="mono-font" style="font-size:12px; color:{chg_2w_c}; font-weight:600;">2W: {item.get('2W_Chg', '0.00%')}</span>
-                                    <span style="font-size:11px; font-weight:700; color:{sig_c}; background:{sig_c}22; padding:2px 8px; border-radius:8px;">{item['Signal']}</span>
-                                    <span class="mono-font" style="font-size:12px; color:#58a6ff; font-weight:700;">{item['Confidence']:.1f}%</span>
-                                </div>
+            st.markdown(f"#### 🎯 Scanned Market Opportunities (Showing Top {len(display_items)} of {total_scanned} Scanned)")
+            for idx, item in enumerate(display_items):
+                sig_c = SIGNAL_COLORS.get(item["Signal"], "#9e9e9e")
+                chg_c = "#00e676" if item["raw_change"] >= 0 else "#ff1744"
+                chg_1w_c = "#00e676" if item.get("raw_1w", 0) >= 0 else "#ff1744"
+                chg_2w_c = "#00e676" if item.get("raw_2w", 0) >= 0 else "#ff1744"
+
+                col_info, col_act = st.columns([4, 1])
+                with col_info:
+                    st.markdown(
+                        f"""
+                        <div class="metric-card" style="border-left:4px solid {sig_c}; padding:10px 16px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:14px;">{item['Symbol']}</span>
+                                <span style="font-size:12px; color:#8b949e;">{item['Name']}</span>
                             </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                            <div style="display:flex; align-items:center; gap:14px;">
+                                <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:13px;">{item['Price']}</span>
+                                <span class="mono-font" style="font-size:12px; color:{chg_c}; font-weight:600;">1D: {item['Change%']}</span>
+                                <span class="mono-font" style="font-size:12px; color:{chg_1w_c}; font-weight:600;">1W: {item.get('1W_Chg', '0.00%')}</span>
+                                <span class="mono-font" style="font-size:12px; color:{chg_2w_c}; font-weight:600;">2W: {item.get('2W_Chg', '0.00%')}</span>
+                                <span style="font-size:11px; font-weight:700; color:{sig_c}; background:{sig_c}22; padding:2px 8px; border-radius:8px;">{item['Signal']}</span>
+                                <span class="mono-font" style="font-size:12px; color:#58a6ff; font-weight:700;">{item['Confidence']:.1f}%</span>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
 
                     with col_act:
                         if st.button(f"⚡ Analyse", key=f"scan_btn_{idx}_{item['Symbol']}"):
