@@ -265,25 +265,44 @@ html, body, [class*="css"] {
     border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
+/* ── Placeholder Card Styling ── */
+.placeholder-card {
+    background: linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)) !important;
+    border: 1px solid rgba(88,166,255,0.2) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5) !important;
+    color: #f0f6fc !important;
+}
+
 /* ── Remove Streamlit Default Tab Red/Pink Underline & Highlight ── */
-div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
+div[data-baseweb="tab-highlight"], 
+div[data-baseweb="tab-border"],
+button[role="tab"] + div,
+.stTabs [data-baseweb="tab-highlight"] {
     display: none !important;
     visibility: hidden !important;
     height: 0px !important;
+    width: 0px !important;
     background-color: transparent !important;
+    border: none !important;
 }
 
-/* ── Modern Enterprise Tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 6px !important;
+/* ── Modern Enterprise Tabs Container ── */
+.stTabs [data-baseweb="tab-list"],
+div[data-testid="stTab"] {
+    gap: 8px !important;
     background: rgba(13, 17, 23, 0.95) !important;
-    padding: 6px 8px !important;
+    padding: 6px 10px !important;
     border-radius: 12px !important;
     border: 1px solid rgba(88, 166, 255, 0.18) !important;
     margin-bottom: 22px !important;
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
 }
-.stTabs [data-baseweb="tab"] {
+
+/* Individual Tab Items */
+.stTabs [data-baseweb="tab"],
+.stTabs button[role="tab"],
+button[data-baseweb="tab"] {
     background: transparent !important;
     border-radius: 8px !important;
     padding: 8px 16px !important;
@@ -295,25 +314,37 @@ div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
     border: 1px solid transparent !important;
     transition: all 0.2s ease !important;
 }
-.stTabs [data-baseweb="tab"] *, .stTabs [data-baseweb="tab"] p, .stTabs [data-baseweb="tab"] span {
+.stTabs [data-baseweb="tab"] *, 
+.stTabs button[role="tab"] *,
+.stTabs [data-baseweb="tab"] p, 
+.stTabs [data-baseweb="tab"] span,
+.stTabs button[role="tab"] p,
+.stTabs button[role="tab"] span {
     color: inherit !important;
     font-weight: 700 !important;
     font-size: 11.5px !important;
 }
-.stTabs [data-baseweb="tab"]:hover {
+.stTabs [data-baseweb="tab"]:hover,
+.stTabs button[role="tab"]:hover {
     color: #f0f6fc !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
 }
-.stTabs [aria-selected="true"], .stTabs [data-baseweb="tab"][aria-selected="true"] {
+.stTabs [aria-selected="true"], 
+.stTabs button[aria-selected="true"],
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
     background: linear-gradient(135deg, rgba(31, 111, 235, 0.4) 0%, rgba(56, 139, 253, 0.3) 100%) !important;
     color: #58a6ff !important;
     border: 1px solid rgba(88, 166, 255, 0.4) !important;
     box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
 }
-.stTabs [aria-selected="true"] *, .stTabs [aria-selected="true"] p, .stTabs [aria-selected="true"] span {
+.stTabs [aria-selected="true"] *, 
+.stTabs button[aria-selected="true"] *,
+.stTabs [aria-selected="true"] p, 
+.stTabs [aria-selected="true"] span {
     color: #58a6ff !important;
 }
+
 
 
 
@@ -553,38 +584,79 @@ with st.sidebar:
             .hero-header p {
                 color: #475569 !important;
             }
-            .stTabs [data-baseweb="tab-list"] {
+
+            /* Tabs Container in Light Mode */
+            .stTabs [data-baseweb="tab-list"],
+            div[data-testid="stTab"] {
                 background: #FFFFFF !important;
                 border: 1px solid #CBD5E1 !important;
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
             }
-            .stTabs [data-baseweb="tab"] {
-                color: #475569 !important;
-                background: transparent !important;
-            }
-            .stTabs [data-baseweb="tab"] *, .stTabs [data-baseweb="tab"] p, .stTabs [data-baseweb="tab"] span {
-                color: #475569 !important;
-            }
-            .stTabs [data-baseweb="tab"]:hover {
-                color: #0F172A !important;
+
+            /* Inactive Tabs in Light Mode - High Contrast Slate Pills with Dark Charcoal Text */
+            .stTabs [data-baseweb="tab"],
+            .stTabs button[role="tab"],
+            button[data-baseweb="tab"] {
+                color: #1E293B !important;
                 background: #F1F5F9 !important;
+                border: 1px solid #CBD5E1 !important;
             }
-            .stTabs [data-baseweb="tab"]:hover *, .stTabs [data-baseweb="tab"]:hover p, .stTabs [data-baseweb="tab"]:hover span {
+            .stTabs [data-baseweb="tab"] *, 
+            .stTabs button[role="tab"] *,
+            .stTabs [data-baseweb="tab"] p, 
+            .stTabs [data-baseweb="tab"] span,
+            .stTabs button[role="tab"] p,
+            .stTabs button[role="tab"] span {
+                color: #1E293B !important;
+            }
+
+            /* Hover Tabs in Light Mode */
+            .stTabs [data-baseweb="tab"]:hover,
+            .stTabs button[role="tab"]:hover {
+                color: #0F172A !important;
+                background: #E2E8F0 !important;
+                border-color: #94A3B8 !important;
+            }
+            .stTabs [data-baseweb="tab"]:hover *,
+            .stTabs button[role="tab"]:hover * {
                 color: #0F172A !important;
             }
-            .stTabs [aria-selected="true"], .stTabs [data-baseweb="tab"][aria-selected="true"] {
+
+            /* Active Selected Tab in Light Mode - TailAdmin Blue Pill */
+            .stTabs [aria-selected="true"], 
+            .stTabs button[aria-selected="true"],
+            .stTabs [data-baseweb="tab"][aria-selected="true"] {
                 background: #2563EB !important;
                 color: #FFFFFF !important;
+                border: 1px solid #1D4ED8 !important;
                 box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
             }
-            .stTabs [aria-selected="true"] *, .stTabs [aria-selected="true"] p, .stTabs [aria-selected="true"] span {
+            .stTabs [aria-selected="true"] *, 
+            .stTabs button[aria-selected="true"] *,
+            .stTabs [aria-selected="true"] p, 
+            .stTabs [aria-selected="true"] span {
                 color: #FFFFFF !important;
             }
+
+            /* Section Headers in Light Mode */
             .section-header {
                 color: #1E3A8A !important;
                 border-bottom: 2px solid #E2E8F0 !important;
                 font-weight: 800 !important;
             }
+
+            /* Placeholder Cards in Light Mode */
+            .placeholder-card {
+                background: #FFFFFF !important;
+                border: 1px solid #E2E8F0 !important;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+                color: #0F172A !important;
+            }
+            .placeholder-card *, .placeholder-card div, .placeholder-card p, .placeholder-card h2, .placeholder-card h3 {
+                color: #0F172A !important;
+            }
+
+            /* Hero Signal Card & Metric Cards */
             .hero-signal-card {
                 background: #FFFFFF !important;
                 border: 1px solid #E2E8F0 !important;
@@ -607,6 +679,8 @@ with st.sidebar:
                 color: #0F172A !important;
                 font-weight: 800 !important;
             }
+
+            /* Streamlit Alert Boxes in Light Mode */
             div[data-testid="stAlert"] {
                 background-color: #EFF6FF !important;
                 border: 1px solid #BFDBFE !important;
@@ -616,6 +690,8 @@ with st.sidebar:
             div[data-testid="stAlert"] * {
                 color: #1E40AF !important;
             }
+
+            /* Inputs & Selectboxes in Light Mode */
             div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
                 background-color: #FFFFFF !important;
                 border-color: #CBD5E1 !important;
@@ -625,6 +701,7 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
+
 
 
     st.divider()
@@ -964,18 +1041,19 @@ with tab_signal:
     if st.session_state.signal_result is None:
         st.markdown(
             """
-            <div style="text-align:center; padding:70px 20px; max-width:650px; margin:30px auto; background:linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)); border:1px solid rgba(88,166,255,0.2); border-radius:18px; box-shadow:0 16px 40px rgba(0,0,0,0.5);">
+            <div class="placeholder-card" style="text-align:center; padding:70px 20px; max-width:650px; margin:30px auto; border-radius:18px;">
                 <div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; background:rgba(56,139,253,0.12); border:1px solid rgba(56,139,253,0.3); border-radius:16px; margin-bottom:18px;">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
                 </div>
-                <h2 style="color:#f0f6fc; font-size:22px; font-weight:800; margin:0 0 8px 0; letter-spacing:-0.01em;">QUANTITATIVE SIGNAL TERMINAL</h2>
-                <p style="color:#8b949e; font-size:13.5px; line-height:1.6; margin:0;">
+                <h2 style="font-size:22px; font-weight:800; margin:0 0 8px 0; letter-spacing:-0.01em;">QUANTITATIVE SIGNAL TERMINAL</h2>
+                <p style="font-size:13.5px; line-height:1.6; margin:0;">
                     Select an Indian equity ticker from the left sidebar and click <strong>RUN QUANT ANALYSIS</strong> to execute multi-timeframe indicator computation, signal scoring, and risk management scenarios.
                 </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
+
 
     else:
         result = st.session_state.signal_result
