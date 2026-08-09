@@ -566,10 +566,24 @@ with st.sidebar:
                 background-image: none !important;
                 color: #0F172A !important;
             }
+
+            /* Sidebar Light Mode Override */
             [data-testid="stSidebar"] {
                 background-color: #FFFFFF !important;
                 border-right: 1px solid #E2E8F0 !important;
             }
+            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+            [data-testid="stSidebar"] label,
+            [data-testid="stSidebar"] span,
+            [data-testid="stSidebar"] div {
+                color: #0F172A !important;
+            }
+            [data-testid="stSidebar"] .section-header {
+                color: #1E3A8A !important;
+                border-bottom: 2px solid #E2E8F0 !important;
+            }
+
+            /* Header */
             .hero-header {
                 background: #FFFFFF !important;
                 border: 1px solid #E2E8F0 !important;
@@ -680,6 +694,29 @@ with st.sidebar:
                 font-weight: 800 !important;
             }
 
+            /* Streamlit Buttons in Light Mode */
+            .stButton > button {
+                background-color: #FFFFFF !important;
+                color: #0F172A !important;
+                border: 1px solid #CBD5E1 !important;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+                font-weight: 700 !important;
+            }
+            .stButton > button:hover {
+                background-color: #F1F5F9 !important;
+                color: #0F172A !important;
+                border-color: #94A3B8 !important;
+            }
+            .stButton > button[kind="primary"] {
+                background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+                color: #FFFFFF !important;
+                border: 1px solid #1D4ED8 !important;
+                box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+            }
+            .stButton > button[kind="primary"] * {
+                color: #FFFFFF !important;
+            }
+
             /* Streamlit Alert Boxes in Light Mode */
             div[data-testid="stAlert"] {
                 background-color: #EFF6FF !important;
@@ -692,15 +729,23 @@ with st.sidebar:
             }
 
             /* Inputs & Selectboxes in Light Mode */
-            div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
+            div[data-baseweb="select"] > div, 
+            div[data-baseweb="input"] > div,
+            div[data-baseweb="base-input"] {
                 background-color: #FFFFFF !important;
                 border-color: #CBD5E1 !important;
+                color: #0F172A !important;
+            }
+            div[data-baseweb="select"] span,
+            div[data-baseweb="input"] input,
+            input, select, textarea {
                 color: #0F172A !important;
             }
             </style>
             """,
             unsafe_allow_html=True,
         )
+
 
 
 
@@ -1820,7 +1865,7 @@ with tab_watchlist:
             )
         else:
             # Live signals for watchlist
-            wl_refresh = st.button("🔄 Refresh Signals", key="wl_refresh")
+            wl_refresh = st.button("Refresh Signals", key="wl_refresh")
             if wl_refresh:
                 with st.spinner("Fetching latest signals…"):
                     wl_data = []
@@ -1853,15 +1898,15 @@ with tab_watchlist:
                     col_a, col_b, col_c, col_d = st.columns([2, 2.5, 1.5, 1])
                     col_a.markdown(f"**{item['symbol']}**")
                     col_b.markdown(f"<span style='color:#8b949e'>{item['name'] or '—'}</span>", unsafe_allow_html=True)
-                    if col_c.button("⚡ Analyse", key=f"wl_ana_{item['symbol']}"):
+                    if col_c.button("Analyse", key=f"wl_ana_{item['symbol']}"):
                         load_and_analyse(item["symbol"])
                         st.rerun()
-                    if col_d.button("🗑", key=f"rm_{item['symbol']}"):
+                    if col_d.button("Remove", key=f"rm_{item['symbol']}"):
                         remove_from_watchlist(item["symbol"])
                         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### 📜 Recent Signal History (Click ⚡ to Load Analysis)")
+    st.markdown("#### Recent Signal History (Click Analyse to Load)")
     recent = get_recent_signals(limit=25)
     if recent:
         for idx, r in enumerate(recent):
@@ -1876,13 +1921,13 @@ with tab_watchlist:
             col2.markdown(f"<span style='color:{sig_c}; font-weight:700;'>{sig}</span>", unsafe_allow_html=True)
             col3.markdown(f"<span class='mono-font'>{conf:.1f}%</span>", unsafe_allow_html=True)
             col4.markdown(f"<span style='color:#8b949e; font-size:12px;'>{dt_str}</span>", unsafe_allow_html=True)
-            if col5.button("⚡ Analyse", key=f"hist_btn_{idx}_{sym}"):
+            if col5.button("Analyse", key=f"hist_btn_{idx}_{sym}"):
                 load_and_analyse(sym)
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
-    st.markdown("### 📊 Real-Time Search History & End-Of-Day (EOD) Analytics")
+    st.markdown("### Search History & End-Of-Day (EOD) Analytics")
 
     eod_col1, eod_col2 = st.columns([1, 2.5])
 
@@ -1903,7 +1948,8 @@ with tab_watchlist:
         )
 
         if eod_stats["top_searched"]:
-            st.markdown("<strong style='font-size:13px; color:#c9d1d9;'>🔥 Most Searched Today</strong>", unsafe_allow_html=True)
+            st.markdown("<strong style='font-size:13px; color:#c9d1d9;'>Most Searched Today</strong>", unsafe_allow_html=True)
+
             for s_item in eod_stats["top_searched"]:
                 st.markdown(
                     f"""
