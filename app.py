@@ -109,56 +109,47 @@ st.set_page_config(
     },
 )
 
-# ── Global CSS ────────────────────────────────────────────────────────────────
+# ── Global Layout & Typography CSS ──────────────────────────────────────────────
 st.markdown(
     """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* ── Global Theme & Background ── */
+/* ── Typography & Monospace ── */
 html, body, [class*="css"] {
     font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
 }
-.stApp {
-    background: #090d14;
-    background-image: 
-        radial-gradient(circle at 50% 0%, rgba(31, 111, 235, 0.12) 0%, transparent 60%),
-        radial-gradient(rgba(56, 139, 253, 0.04) 1px, transparent 0);
-    background-size: 100% 100%, 28px 28px;
-    color: #f0f6fc;
-}
-
-/* ── Typography & Monospace ── */
 .mono-font {
     font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* ── Enterprise Header Terminal ── */
-.hero-header {
-    background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.85) 100%);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(88, 166, 255, 0.2);
-    border-radius: 16px;
-    padding: 22px 28px;
-    margin-bottom: 24px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    position: relative;
-    overflow: hidden;
-}
-.hero-header::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, #1f6feb, #388bfd, #2ea043, #388bfd, #1f6feb);
-    background-size: 200% 100%;
-    animation: borderGlow 4s linear infinite;
-}
-@keyframes borderGlow {
-    0% { background-position: 0% 0%; }
-    100% { background-position: 200% 0%; }
+/* ── Streamlit Top Header Transparent Bar ── */
+header[data-testid="stHeader"],
+[data-testid="stHeader"] {
+    background-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
+/* ── Remove Streamlit Default Red/Pink Tab Highlight & Underline ── */
+div[data-baseweb="tab-highlight"], 
+div[data-baseweb="tab-border"],
+[data-testid="stTab"] div[data-baseweb="tab-highlight"],
+button[role="tab"] + div,
+.stTabs [data-baseweb="tab-highlight"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0px !important;
+    max-height: 0px !important;
+    width: 0px !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+/* ── General Header Components ── */
 .live-indicator {
     display: inline-flex;
     align-items: center;
@@ -187,182 +178,6 @@ html, body, [class*="css"] {
     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
 }
 
-/* ── Metric Glass Cards ── */
-.metric-card {
-    background: linear-gradient(145deg, rgba(17, 24, 39, 0.75) 0%, rgba(13, 17, 23, 0.85) 100%);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 16px 18px;
-    text-align: center;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-.metric-card:hover {
-    transform: translateY(-3px);
-    border-color: rgba(88, 166, 255, 0.35);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(88, 166, 255, 0.1);
-}
-.metric-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: #8b949e;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 6px;
-}
-.metric-value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 21px;
-    font-weight: 700;
-    color: #f0f6fc;
-}
-
-/* ── Signal Hero Card ── */
-.hero-signal-card {
-    background: linear-gradient(145deg, rgba(13, 20, 32, 0.9) 0%, rgba(9, 13, 20, 0.98) 100%);
-    backdrop-filter: blur(16px);
-    border-radius: 18px;
-    padding: 28px;
-    margin-bottom: 24px;
-    text-align: center;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    position: relative;
-}
-
-/* ── Section headers ── */
-.section-header {
-    font-size: 15px;
-    font-weight: 700;
-    color: #58a6ff;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    margin-bottom: 14px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(88, 166, 255, 0.15);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* ── AI Explanation Box ── */
-.ai-box {
-    background: linear-gradient(135deg, rgba(13, 33, 55, 0.65) 0%, rgba(9, 21, 38, 0.85) 100%);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(88, 166, 255, 0.25);
-    border-radius: 14px;
-    padding: 22px;
-    font-size: 14px;
-    line-height: 1.7;
-    color: #c9d1d9;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-}
-
-/* ── Sidebar styling ── */
-[data-testid="stSidebar"] {
-    background: #0b0e14 !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-
-/* ── Placeholder Card Styling ── */
-.placeholder-card {
-    background: linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)) !important;
-    border: 1px solid rgba(88,166,255,0.2) !important;
-    border-radius: 18px !important;
-    box-shadow: 0 16px 40px rgba(0,0,0,0.5) !important;
-    color: #f0f6fc !important;
-}
-
-/* ── Remove Streamlit Default Tab Red/Pink Underline & Highlight ── */
-div[data-baseweb="tab-highlight"], 
-div[data-baseweb="tab-border"],
-button[role="tab"] + div,
-.stTabs [data-baseweb="tab-highlight"] {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0px !important;
-    width: 0px !important;
-    background-color: transparent !important;
-    border: none !important;
-}
-
-/* ── Modern Enterprise Tabs Container ── */
-.stTabs [data-baseweb="tab-list"],
-div[data-testid="stTab"] {
-    gap: 8px !important;
-    background: rgba(13, 17, 23, 0.95) !important;
-    padding: 6px 10px !important;
-    border-radius: 12px !important;
-    border: 1px solid rgba(88, 166, 255, 0.18) !important;
-    margin-bottom: 22px !important;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-/* Individual Tab Items */
-.stTabs [data-baseweb="tab"],
-.stTabs button[role="tab"],
-button[data-baseweb="tab"] {
-    background: transparent !important;
-    border-radius: 8px !important;
-    padding: 8px 16px !important;
-    font-weight: 700 !important;
-    font-size: 11.5px !important;
-    letter-spacing: 0.06em !important;
-    text-transform: uppercase !important;
-    color: #94a3b8 !important;
-    border: 1px solid transparent !important;
-    transition: all 0.2s ease !important;
-}
-.stTabs [data-baseweb="tab"] *, 
-.stTabs button[role="tab"] *,
-.stTabs [data-baseweb="tab"] p, 
-.stTabs [data-baseweb="tab"] span,
-.stTabs button[role="tab"] p,
-.stTabs button[role="tab"] span {
-    color: inherit !important;
-    font-weight: 700 !important;
-    font-size: 11.5px !important;
-}
-.stTabs [data-baseweb="tab"]:hover,
-.stTabs button[role="tab"]:hover {
-    color: #f0f6fc !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-}
-.stTabs [aria-selected="true"], 
-.stTabs button[aria-selected="true"],
-.stTabs [data-baseweb="tab"][aria-selected="true"] {
-    background: linear-gradient(135deg, rgba(31, 111, 235, 0.4) 0%, rgba(56, 139, 253, 0.3) 100%) !important;
-    color: #58a6ff !important;
-    border: 1px solid rgba(88, 166, 255, 0.4) !important;
-    box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
-}
-.stTabs [aria-selected="true"] *, 
-.stTabs button[aria-selected="true"] *,
-.stTabs [aria-selected="true"] p, 
-.stTabs [aria-selected="true"] span {
-    color: #58a6ff !important;
-}
-
-
-
-
-/* ── Buttons ── */
-.stButton > button {
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-    padding: 9px 20px !important;
-    transition: all 0.2s ease !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-}
-.stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important;
-    border-color: #3fb950 !important;
-    box-shadow: 0 4px 16px rgba(46, 160, 67, 0.3) !important;
-}
-.stButton > button[kind="primary"]:hover {
-    transform: translateY(-2px) !important;
     box-shadow: 0 8px 24px rgba(46, 160, 67, 0.45) !important;
 }
 
@@ -567,15 +382,26 @@ with st.sidebar:
                 color: #0F172A !important;
             }
 
+            /* Streamlit Header Bar Transparent */
+            header[data-testid="stHeader"],
+            [data-testid="stHeader"] {
+                background-color: transparent !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
             /* Sidebar Light Mode Override */
             [data-testid="stSidebar"] {
                 background-color: #FFFFFF !important;
+                background: #FFFFFF !important;
                 border-right: 1px solid #E2E8F0 !important;
             }
-            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+            [data-testid="stSidebar"] *,
+            [data-testid="stSidebar"] p,
             [data-testid="stSidebar"] label,
             [data-testid="stSidebar"] span,
-            [data-testid="stSidebar"] div {
+            [data-testid="stSidebar"] div,
+            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
                 color: #0F172A !important;
             }
             [data-testid="stSidebar"] .section-header {
@@ -583,7 +409,7 @@ with st.sidebar:
                 border-bottom: 2px solid #E2E8F0 !important;
             }
 
-            /* Header */
+            /* Hero Header Card */
             .hero-header {
                 background: #FFFFFF !important;
                 border: 1px solid #E2E8F0 !important;
@@ -595,8 +421,24 @@ with st.sidebar:
                 background: none !important;
                 -webkit-text-fill-color: #0F172A !important;
             }
-            .hero-header p {
+            .hero-header p, .hero-header span, .hero-header div {
                 color: #475569 !important;
+            }
+
+            /* Remove Red Underline from Tabs */
+            div[data-baseweb="tab-highlight"], 
+            div[data-baseweb="tab-border"],
+            [data-testid="stTab"] div[data-baseweb="tab-highlight"],
+            button[role="tab"] + div,
+            .stTabs [data-baseweb="tab-highlight"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                height: 0px !important;
+                width: 0px !important;
+                background: transparent !important;
+                background-color: transparent !important;
+                border: none !important;
             }
 
             /* Tabs Container in Light Mode */
@@ -607,12 +449,13 @@ with st.sidebar:
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
             }
 
-            /* Inactive Tabs in Light Mode - High Contrast Slate Pills with Dark Charcoal Text */
+            /* Inactive Tabs in Light Mode */
             .stTabs [data-baseweb="tab"],
             .stTabs button[role="tab"],
             button[data-baseweb="tab"] {
-                color: #1E293B !important;
+                color: #334155 !important;
                 background: #F1F5F9 !important;
+                background-color: #F1F5F9 !important;
                 border: 1px solid #CBD5E1 !important;
             }
             .stTabs [data-baseweb="tab"] *, 
@@ -621,7 +464,7 @@ with st.sidebar:
             .stTabs [data-baseweb="tab"] span,
             .stTabs button[role="tab"] p,
             .stTabs button[role="tab"] span {
-                color: #1E293B !important;
+                color: #334155 !important;
             }
 
             /* Hover Tabs in Light Mode */
@@ -629,6 +472,7 @@ with st.sidebar:
             .stTabs button[role="tab"]:hover {
                 color: #0F172A !important;
                 background: #E2E8F0 !important;
+                background-color: #E2E8F0 !important;
                 border-color: #94A3B8 !important;
             }
             .stTabs [data-baseweb="tab"]:hover *,
@@ -636,11 +480,12 @@ with st.sidebar:
                 color: #0F172A !important;
             }
 
-            /* Active Selected Tab in Light Mode - TailAdmin Blue Pill */
+            /* Active Selected Tab in Light Mode */
             .stTabs [aria-selected="true"], 
             .stTabs button[aria-selected="true"],
             .stTabs [data-baseweb="tab"][aria-selected="true"] {
                 background: #2563EB !important;
+                background-color: #2563EB !important;
                 color: #FFFFFF !important;
                 border: 1px solid #1D4ED8 !important;
                 box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
@@ -659,39 +504,19 @@ with st.sidebar:
                 font-weight: 800 !important;
             }
 
-            /* Placeholder Cards in Light Mode */
-            .placeholder-card {
+            /* Cards & Content Containers in Light Mode */
+            .placeholder-card, .hero-signal-card, .metric-card, .ai-box {
                 background: #FFFFFF !important;
                 border: 1px solid #E2E8F0 !important;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04) !important;
                 color: #0F172A !important;
             }
-            .placeholder-card *, .placeholder-card div, .placeholder-card p, .placeholder-card h2, .placeholder-card h3 {
+            .placeholder-card *, .hero-signal-card *, .metric-card *, .ai-box * {
                 color: #0F172A !important;
-            }
-
-            /* Hero Signal Card & Metric Cards */
-            .hero-signal-card {
-                background: #FFFFFF !important;
-                border: 1px solid #E2E8F0 !important;
-                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05) !important;
-                color: #0F172A !important;
-            }
-            .hero-signal-card div {
-                color: #0F172A !important;
-            }
-            .metric-card {
-                background: #FFFFFF !important;
-                border: 1px solid #E2E8F0 !important;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
             }
             .metric-label {
                 color: #64748B !important;
                 font-weight: 700 !important;
-            }
-            .metric-value {
-                color: #0F172A !important;
-                font-weight: 800 !important;
             }
 
             /* Streamlit Buttons in Light Mode */
@@ -749,7 +574,7 @@ with st.sidebar:
         st.markdown(
             """
             <style>
-            /* ── Institutional Dark Theme Explicit Restoration ── */
+            /* ── Institutional Dark Theme Restoration ── */
             .stApp {
                 background: #090d14 !important;
                 background-image: 
@@ -759,15 +584,26 @@ with st.sidebar:
                 color: #f0f6fc !important;
             }
 
-            /* Sidebar Dark Mode Override */
+            /* Streamlit Header Bar Transparent */
+            header[data-testid="stHeader"],
+            [data-testid="stHeader"] {
+                background-color: transparent !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            /* Sidebar Dark Mode */
             [data-testid="stSidebar"] {
+                background-color: #0b0e14 !important;
                 background: #0b0e14 !important;
                 border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
             }
-            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+            [data-testid="stSidebar"] *,
+            [data-testid="stSidebar"] p,
             [data-testid="stSidebar"] label,
             [data-testid="stSidebar"] span,
-            [data-testid="stSidebar"] div {
+            [data-testid="stSidebar"] div,
+            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
                 color: #c9d1d9 !important;
             }
             [data-testid="stSidebar"] .section-header {
@@ -775,7 +611,7 @@ with st.sidebar:
                 border-bottom: 1px solid rgba(88, 166, 255, 0.15) !important;
             }
 
-            /* Header */
+            /* Hero Header Card */
             .hero-header {
                 background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.85) 100%) !important;
                 border: 1px solid rgba(88, 166, 255, 0.2) !important;
@@ -788,11 +624,27 @@ with st.sidebar:
                 -webkit-background-clip: text !important;
                 -webkit-text-fill-color: transparent !important;
             }
-            .hero-header p {
+            .hero-header p, .hero-header span, .hero-header div {
                 color: #8b949e !important;
             }
 
-            /* Dark Tabs Container */
+            /* Remove Red Underline from Tabs */
+            div[data-baseweb="tab-highlight"], 
+            div[data-baseweb="tab-border"],
+            [data-testid="stTab"] div[data-baseweb="tab-highlight"],
+            button[role="tab"] + div,
+            .stTabs [data-baseweb="tab-highlight"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                height: 0px !important;
+                width: 0px !important;
+                background: transparent !important;
+                background-color: transparent !important;
+                border: none !important;
+            }
+
+            /* Tabs Container in Dark Mode */
             .stTabs [data-baseweb="tab-list"],
             div[data-testid="stTab"] {
                 background: rgba(13, 17, 23, 0.95) !important;
@@ -806,6 +658,7 @@ with st.sidebar:
             button[data-baseweb="tab"] {
                 color: #94a3b8 !important;
                 background: transparent !important;
+                background-color: transparent !important;
                 border: 1px solid transparent !important;
             }
             .stTabs [data-baseweb="tab"] *, 
@@ -822,6 +675,7 @@ with st.sidebar:
             .stTabs button[role="tab"]:hover {
                 color: #f0f6fc !important;
                 background: rgba(255, 255, 255, 0.05) !important;
+                background-color: rgba(255, 255, 255, 0.05) !important;
                 border-color: rgba(255, 255, 255, 0.08) !important;
             }
             .stTabs [data-baseweb="tab"]:hover *,
@@ -834,8 +688,9 @@ with st.sidebar:
             .stTabs button[aria-selected="true"],
             .stTabs [data-baseweb="tab"][aria-selected="true"] {
                 background: linear-gradient(135deg, rgba(31, 111, 235, 0.4) 0%, rgba(56, 139, 253, 0.3) 100%) !important;
+                background-color: rgba(31, 111, 235, 0.4) !important;
                 color: #58a6ff !important;
-                border: 1px solid rgba(88, 166, 255, 0.4) !important;
+                border: 1px solid rgba(88, 166, 255, 0.5) !important;
                 box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
             }
             .stTabs [aria-selected="true"] *, 
@@ -852,7 +707,7 @@ with st.sidebar:
                 font-weight: 700 !important;
             }
 
-            /* Placeholder Cards in Dark Mode */
+            /* Cards & Content Containers in Dark Mode */
             .placeholder-card {
                 background: linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)) !important;
                 border: 1px solid rgba(88,166,255,0.2) !important;
@@ -863,7 +718,6 @@ with st.sidebar:
                 color: #f0f6fc !important;
             }
 
-            /* Hero Signal Card & Metric Cards in Dark Mode */
             .hero-signal-card {
                 background: linear-gradient(145deg, rgba(13, 20, 32, 0.9) 0%, rgba(9, 13, 20, 0.98) 100%) !important;
                 border: 1px solid rgba(88,166,255,0.2) !important;
@@ -873,6 +727,7 @@ with st.sidebar:
             .hero-signal-card div {
                 color: #f0f6fc !important;
             }
+
             .metric-card {
                 background: linear-gradient(145deg, rgba(17, 24, 39, 0.75) 0%, rgba(13, 17, 23, 0.85) 100%) !important;
                 border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -885,6 +740,12 @@ with st.sidebar:
             .metric-value {
                 color: #f0f6fc !important;
                 font-weight: 700 !important;
+            }
+
+            .ai-box {
+                background: linear-gradient(135deg, rgba(13, 33, 55, 0.65) 0%, rgba(9, 21, 38, 0.85) 100%) !important;
+                border: 1px solid rgba(88, 166, 255, 0.25) !important;
+                color: #c9d1d9 !important;
             }
 
             /* Buttons in Dark Mode */
@@ -927,6 +788,7 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
+
 
 
 
