@@ -132,12 +132,18 @@ header[data-testid="stHeader"],
     box-shadow: none !important;
 }
 
-/* ── Remove Streamlit Default Red/Pink Tab Highlight & Underline ── */
+/* ── Destroy ALL Streamlit BaseWeb Tab Highlight Lines, Pseudo-elements & Underlines ── */
 div[data-baseweb="tab-highlight"], 
 div[data-baseweb="tab-border"],
 [data-testid="stTab"] div[data-baseweb="tab-highlight"],
 button[role="tab"] + div,
-.stTabs [data-baseweb="tab-highlight"] {
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab"]::after,
+.stTabs [data-baseweb="tab"]::before,
+.stTabs button[role="tab"]::after,
+.stTabs button[role="tab"]::before,
+button[data-baseweb="tab"]::after,
+button[data-baseweb="tab"]::before {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
@@ -147,7 +153,28 @@ button[role="tab"] + div,
     background-color: transparent !important;
     background: transparent !important;
     border: none !important;
+    box-shadow: none !important;
 }
+
+/* ── Clean Tab List Flex Wrap & Hide Overflow Chevrons ── */
+.stTabs [data-baseweb="tab-list"],
+div[data-baseweb="tab-list"] {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    border-bottom: none !important;
+    background: transparent !important;
+}
+.stTabs button[aria-label="Previous tab"],
+.stTabs button[aria-label="Next tab"],
+div[data-baseweb="tab-list"] > button {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0px !important;
+    height: 0px !important;
+    opacity: 0 !important;
+}
+
 
 /* ── General Header Components ── */
 .live-indicator {
@@ -471,7 +498,9 @@ with st.sidebar:
             .stTabs [data-baseweb="tab-list"],
             div[data-testid="stTab"] {
                 background: #FFFFFF !important;
-                border: 1px solid #CBD5E1 !important;
+                border: 1px solid #E2E8F0 !important;
+                padding: 6px !important;
+                border-radius: 12px !important;
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
             }
 
@@ -479,10 +508,14 @@ with st.sidebar:
             .stTabs [data-baseweb="tab"],
             .stTabs button[role="tab"],
             button[data-baseweb="tab"] {
-                color: #334155 !important;
+                color: #475569 !important;
                 background: #F1F5F9 !important;
                 background-color: #F1F5F9 !important;
                 border: 1px solid #CBD5E1 !important;
+                border-radius: 8px !important;
+                padding: 8px 16px !important;
+                outline: none !important;
+                box-shadow: none !important;
             }
             .stTabs [data-baseweb="tab"] *, 
             .stTabs button[role="tab"] *,
@@ -490,7 +523,9 @@ with st.sidebar:
             .stTabs [data-baseweb="tab"] span,
             .stTabs button[role="tab"] p,
             .stTabs button[role="tab"] span {
-                color: #334155 !important;
+                color: #475569 !important;
+                font-weight: 700 !important;
+                font-size: 11.5px !important;
             }
 
             /* Hover Tabs in Light Mode */
@@ -510,7 +545,7 @@ with st.sidebar:
             .stTabs [aria-selected="true"], 
             .stTabs button[aria-selected="true"],
             .stTabs [data-baseweb="tab"][aria-selected="true"] {
-                background: #2563EB !important;
+                background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
                 background-color: #2563EB !important;
                 color: #FFFFFF !important;
                 border: 1px solid #1D4ED8 !important;
@@ -695,22 +730,13 @@ with st.sidebar:
                 border: none !important;
             }
 
-            /* Tab Overflow Chevron Scroll Buttons in Dark Mode */
-            .stTabs button[aria-label="Previous tab"],
-            .stTabs button[aria-label="Next tab"],
-            div[data-baseweb="tab-list"] > button {
-                background-color: #0d1117 !important;
-                background: #0d1117 !important;
-                color: #58a6ff !important;
-                border: 1px solid rgba(88, 166, 255, 0.2) !important;
-                border-radius: 8px !important;
-            }
-
             /* Tabs Container in Dark Mode */
             .stTabs [data-baseweb="tab-list"],
             div[data-testid="stTab"] {
                 background: rgba(13, 17, 23, 0.95) !important;
                 border: 1px solid rgba(88, 166, 255, 0.18) !important;
+                padding: 6px !important;
+                border-radius: 12px !important;
                 box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
             }
 
@@ -718,10 +744,14 @@ with st.sidebar:
             .stTabs [data-baseweb="tab"],
             .stTabs button[role="tab"],
             button[data-baseweb="tab"] {
-                color: #94a3b8 !important;
-                background: transparent !important;
-                background-color: transparent !important;
-                border: 1px solid transparent !important;
+                color: #8b949e !important;
+                background: rgba(22, 27, 34, 0.6) !important;
+                background-color: rgba(22, 27, 34, 0.6) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                border-radius: 8px !important;
+                padding: 8px 16px !important;
+                outline: none !important;
+                box-shadow: none !important;
             }
             .stTabs [data-baseweb="tab"] *, 
             .stTabs button[role="tab"] *,
@@ -729,15 +759,17 @@ with st.sidebar:
             .stTabs [data-baseweb="tab"] span,
             .stTabs button[role="tab"] p,
             .stTabs button[role="tab"] span {
-                color: #94a3b8 !important;
+                color: #8b949e !important;
+                font-weight: 700 !important;
+                font-size: 11.5px !important;
             }
 
             /* Hover Tabs in Dark Mode */
             .stTabs [data-baseweb="tab"]:hover,
             .stTabs button[role="tab"]:hover {
                 color: #58a6ff !important;
-                background: rgba(31, 111, 235, 0.2) !important;
-                background-color: rgba(31, 111, 235, 0.2) !important;
+                background: rgba(31, 111, 235, 0.25) !important;
+                background-color: rgba(31, 111, 235, 0.25) !important;
                 border-color: rgba(88, 166, 255, 0.4) !important;
             }
             .stTabs [data-baseweb="tab"]:hover *,
@@ -749,18 +781,19 @@ with st.sidebar:
             .stTabs [aria-selected="true"], 
             .stTabs button[aria-selected="true"],
             .stTabs [data-baseweb="tab"][aria-selected="true"] {
-                background: linear-gradient(135deg, rgba(31, 111, 235, 0.4) 0%, rgba(56, 139, 253, 0.3) 100%) !important;
-                background-color: rgba(31, 111, 235, 0.4) !important;
-                color: #58a6ff !important;
-                border: 1px solid rgba(88, 166, 255, 0.5) !important;
-                box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
+                background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%) !important;
+                background-color: #1f6feb !important;
+                color: #FFFFFF !important;
+                border: 1px solid #388bfd !important;
+                box-shadow: 0 4px 14px rgba(31, 111, 235, 0.4) !important;
             }
             .stTabs [aria-selected="true"] *, 
             .stTabs button[aria-selected="true"] *,
             .stTabs [aria-selected="true"] p, 
             .stTabs [aria-selected="true"] span {
-                color: #58a6ff !important;
+                color: #FFFFFF !important;
             }
+
 
             /* Section Headers in Dark Mode */
             .section-header {
