@@ -745,6 +745,189 @@ with st.sidebar:
             """,
             unsafe_allow_html=True,
         )
+    else:
+        st.markdown(
+            """
+            <style>
+            /* ── Institutional Dark Theme Explicit Restoration ── */
+            .stApp {
+                background: #090d14 !important;
+                background-image: 
+                    radial-gradient(circle at 50% 0%, rgba(31, 111, 235, 0.12) 0%, transparent 60%),
+                    radial-gradient(rgba(56, 139, 253, 0.04) 1px, transparent 0) !important;
+                background-size: 100% 100%, 28px 28px !important;
+                color: #f0f6fc !important;
+            }
+
+            /* Sidebar Dark Mode Override */
+            [data-testid="stSidebar"] {
+                background: #0b0e14 !important;
+                border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+            [data-testid="stSidebar"] label,
+            [data-testid="stSidebar"] span,
+            [data-testid="stSidebar"] div {
+                color: #c9d1d9 !important;
+            }
+            [data-testid="stSidebar"] .section-header {
+                color: #58a6ff !important;
+                border-bottom: 1px solid rgba(88, 166, 255, 0.15) !important;
+            }
+
+            /* Header */
+            .hero-header {
+                background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.85) 100%) !important;
+                border: 1px solid rgba(88, 166, 255, 0.2) !important;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+                color: #f0f6fc !important;
+            }
+            .hero-header h1 {
+                color: #f0f6fc !important;
+                background: linear-gradient(90deg, #58a6ff, #00e5ff, #79c0ff) !important;
+                -webkit-background-clip: text !important;
+                -webkit-text-fill-color: transparent !important;
+            }
+            .hero-header p {
+                color: #8b949e !important;
+            }
+
+            /* Dark Tabs Container */
+            .stTabs [data-baseweb="tab-list"],
+            div[data-testid="stTab"] {
+                background: rgba(13, 17, 23, 0.95) !important;
+                border: 1px solid rgba(88, 166, 255, 0.18) !important;
+                box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+            }
+
+            /* Inactive Tabs in Dark Mode */
+            .stTabs [data-baseweb="tab"],
+            .stTabs button[role="tab"],
+            button[data-baseweb="tab"] {
+                color: #94a3b8 !important;
+                background: transparent !important;
+                border: 1px solid transparent !important;
+            }
+            .stTabs [data-baseweb="tab"] *, 
+            .stTabs button[role="tab"] *,
+            .stTabs [data-baseweb="tab"] p, 
+            .stTabs [data-baseweb="tab"] span,
+            .stTabs button[role="tab"] p,
+            .stTabs button[role="tab"] span {
+                color: #94a3b8 !important;
+            }
+
+            /* Hover Tabs in Dark Mode */
+            .stTabs [data-baseweb="tab"]:hover,
+            .stTabs button[role="tab"]:hover {
+                color: #f0f6fc !important;
+                background: rgba(255, 255, 255, 0.05) !important;
+                border-color: rgba(255, 255, 255, 0.08) !important;
+            }
+            .stTabs [data-baseweb="tab"]:hover *,
+            .stTabs button[role="tab"]:hover * {
+                color: #f0f6fc !important;
+            }
+
+            /* Active Selected Tab in Dark Mode */
+            .stTabs [aria-selected="true"], 
+            .stTabs button[aria-selected="true"],
+            .stTabs [data-baseweb="tab"][aria-selected="true"] {
+                background: linear-gradient(135deg, rgba(31, 111, 235, 0.4) 0%, rgba(56, 139, 253, 0.3) 100%) !important;
+                color: #58a6ff !important;
+                border: 1px solid rgba(88, 166, 255, 0.4) !important;
+                box-shadow: 0 4px 14px rgba(31, 111, 235, 0.25) !important;
+            }
+            .stTabs [aria-selected="true"] *, 
+            .stTabs button[aria-selected="true"] *,
+            .stTabs [aria-selected="true"] p, 
+            .stTabs [aria-selected="true"] span {
+                color: #58a6ff !important;
+            }
+
+            /* Section Headers in Dark Mode */
+            .section-header {
+                color: #58a6ff !important;
+                border-bottom: 1px solid rgba(88, 166, 255, 0.15) !important;
+                font-weight: 700 !important;
+            }
+
+            /* Placeholder Cards in Dark Mode */
+            .placeholder-card {
+                background: linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)) !important;
+                border: 1px solid rgba(88,166,255,0.2) !important;
+                box-shadow: 0 16px 40px rgba(0,0,0,0.5) !important;
+                color: #f0f6fc !important;
+            }
+            .placeholder-card *, .placeholder-card div, .placeholder-card p, .placeholder-card h2, .placeholder-card h3 {
+                color: #f0f6fc !important;
+            }
+
+            /* Hero Signal Card & Metric Cards in Dark Mode */
+            .hero-signal-card {
+                background: linear-gradient(145deg, rgba(13, 20, 32, 0.9) 0%, rgba(9, 13, 20, 0.98) 100%) !important;
+                border: 1px solid rgba(88,166,255,0.2) !important;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.6) !important;
+                color: #f0f6fc !important;
+            }
+            .hero-signal-card div {
+                color: #f0f6fc !important;
+            }
+            .metric-card {
+                background: linear-gradient(145deg, rgba(17, 24, 39, 0.75) 0%, rgba(13, 17, 23, 0.85) 100%) !important;
+                border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+            }
+            .metric-label {
+                color: #8b949e !important;
+                font-weight: 700 !important;
+            }
+            .metric-value {
+                color: #f0f6fc !important;
+                font-weight: 700 !important;
+            }
+
+            /* Buttons in Dark Mode */
+            .stButton > button {
+                background-color: rgba(22, 27, 34, 0.8) !important;
+                color: #c9d1d9 !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+                font-weight: 600 !important;
+            }
+            .stButton > button:hover {
+                background-color: rgba(56, 139, 253, 0.15) !important;
+                color: #58a6ff !important;
+                border-color: rgba(88, 166, 255, 0.4) !important;
+            }
+            .stButton > button[kind="primary"] {
+                background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important;
+                color: #ffffff !important;
+                border: 1px solid #3fb950 !important;
+                box-shadow: 0 4px 16px rgba(46, 160, 67, 0.3) !important;
+            }
+            .stButton > button[kind="primary"] * {
+                color: #ffffff !important;
+            }
+
+            /* Inputs & Selectboxes in Dark Mode */
+            div[data-baseweb="select"] > div, 
+            div[data-baseweb="input"] > div,
+            div[data-baseweb="base-input"] {
+                background-color: rgba(13, 17, 23, 0.7) !important;
+                border-color: rgba(88, 166, 255, 0.2) !important;
+                color: #f0f6fc !important;
+            }
+            div[data-baseweb="select"] span,
+            div[data-baseweb="input"] input,
+            input, select, textarea {
+                color: #f0f6fc !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 
 
