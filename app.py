@@ -343,15 +343,15 @@ with st.sidebar:
 
     st.markdown(
         f"""
-        <div style="background:linear-gradient(145deg, rgba(22,27,34,0.9), rgba(13,17,23,0.95)); border:1px solid rgba(88,166,255,0.2); border-radius:14px; padding:16px 14px; margin-bottom:14px; box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+        <div class="user-profile-card">
             <div style="display:flex; align-items:center; gap:12px;">
                 <div style="background:linear-gradient(135deg,#1f6feb,#388bfd); width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#FFFFFF; box-shadow:0 4px 12px rgba(31,111,235,0.4); shrink:0;">{initials}</div>
                 <div>
-                    <div style="font-size:13.5px; font-weight:700; color:#f0f6fc; line-height:1.2;">{user_display_name}</div>
+                    <div style="font-size:13.5px; font-weight:700; line-height:1.2;">{user_display_name}</div>
                     <div style="font-size:10px; font-weight:700; color:#58a6ff; letter-spacing:0.06em; margin-top:2px;">INSTITUTIONAL PRO</div>
                 </div>
             </div>
-            <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06); font-size:11px; color:#8b949e; word-break:break-all;">
+            <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1); font-size:11px; opacity:0.85; word-break:break-all;">
                 <div>📧 {user_email if user_email else 'N/A'}</div>
                 {f'<div style="margin-top:2px;">📞 {user_phone}</div>' if user_phone else ''}
             </div>
@@ -359,6 +359,7 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
+
 
     if st.button("Logout / Switch Profile", key="btn_logout_sidebar", use_container_width=True):
         st.session_state["is_logged_in"] = False
@@ -409,6 +410,20 @@ with st.sidebar:
                 border-bottom: 2px solid #E2E8F0 !important;
             }
 
+            /* User Profile Card in Light Mode */
+            .user-profile-card {
+                background: #FFFFFF !important;
+                border: 1px solid #CBD5E1 !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+                border-radius: 14px !important;
+                padding: 16px 14px !important;
+                margin-bottom: 14px !important;
+                color: #0F172A !important;
+            }
+            .user-profile-card *, .user-profile-card div {
+                color: #0F172A !important;
+            }
+
             /* Hero Header Card */
             .hero-header {
                 background: #FFFFFF !important;
@@ -441,6 +456,17 @@ with st.sidebar:
                 border: none !important;
             }
 
+            /* Tab Overflow Chevron Scroll Buttons in Light Mode */
+            .stTabs button[aria-label="Previous tab"],
+            .stTabs button[aria-label="Next tab"],
+            div[data-baseweb="tab-list"] > button {
+                background-color: #FFFFFF !important;
+                background: #FFFFFF !important;
+                color: #2563EB !important;
+                border: 1px solid #CBD5E1 !important;
+                border-radius: 8px !important;
+            }
+
             /* Tabs Container in Light Mode */
             .stTabs [data-baseweb="tab-list"],
             div[data-testid="stTab"] {
@@ -470,14 +496,14 @@ with st.sidebar:
             /* Hover Tabs in Light Mode */
             .stTabs [data-baseweb="tab"]:hover,
             .stTabs button[role="tab"]:hover {
-                color: #0F172A !important;
+                color: #1E3A8A !important;
                 background: #E2E8F0 !important;
                 background-color: #E2E8F0 !important;
-                border-color: #94A3B8 !important;
+                border-color: #2563EB !important;
             }
             .stTabs [data-baseweb="tab"]:hover *,
             .stTabs button[role="tab"]:hover * {
-                color: #0F172A !important;
+                color: #1E3A8A !important;
             }
 
             /* Active Selected Tab in Light Mode */
@@ -510,6 +536,12 @@ with st.sidebar:
                 border: 1px solid #E2E8F0 !important;
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04) !important;
                 color: #0F172A !important;
+                transition: all 0.25s ease !important;
+            }
+            .placeholder-card:hover, .hero-signal-card:hover, .metric-card:hover, .ai-box:hover {
+                border-color: #2563EB !important;
+                box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12) !important;
+                transform: translateY(-2px) !important;
             }
             .placeholder-card *, .hero-signal-card *, .metric-card *, .ai-box * {
                 color: #0F172A !important;
@@ -529,14 +561,19 @@ with st.sidebar:
             }
             .stButton > button:hover {
                 background-color: #F1F5F9 !important;
-                color: #0F172A !important;
-                border-color: #94A3B8 !important;
+                color: #1E3A8A !important;
+                border-color: #2563EB !important;
+                transform: translateY(-1px) !important;
             }
             .stButton > button[kind="primary"] {
                 background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
                 color: #FFFFFF !important;
                 border: 1px solid #1D4ED8 !important;
                 box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+            }
+            .stButton > button[kind="primary"]:hover {
+                background: linear-gradient(135deg, #1D4ED8, #1E40AF) !important;
+                box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45) !important;
             }
             .stButton > button[kind="primary"] * {
                 color: #FFFFFF !important;
@@ -611,6 +648,20 @@ with st.sidebar:
                 border-bottom: 1px solid rgba(88, 166, 255, 0.15) !important;
             }
 
+            /* User Profile Card in Dark Mode */
+            .user-profile-card {
+                background: linear-gradient(145deg, rgba(22,27,34,0.9), rgba(13,17,23,0.95)) !important;
+                border: 1px solid rgba(88,166,255,0.2) !important;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+                border-radius: 14px !important;
+                padding: 16px 14px !important;
+                margin-bottom: 14px !important;
+                color: #f0f6fc !important;
+            }
+            .user-profile-card *, .user-profile-card div {
+                color: #f0f6fc !important;
+            }
+
             /* Hero Header Card */
             .hero-header {
                 background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.85) 100%) !important;
@@ -644,6 +695,17 @@ with st.sidebar:
                 border: none !important;
             }
 
+            /* Tab Overflow Chevron Scroll Buttons in Dark Mode */
+            .stTabs button[aria-label="Previous tab"],
+            .stTabs button[aria-label="Next tab"],
+            div[data-baseweb="tab-list"] > button {
+                background-color: #0d1117 !important;
+                background: #0d1117 !important;
+                color: #58a6ff !important;
+                border: 1px solid rgba(88, 166, 255, 0.2) !important;
+                border-radius: 8px !important;
+            }
+
             /* Tabs Container in Dark Mode */
             .stTabs [data-baseweb="tab-list"],
             div[data-testid="stTab"] {
@@ -673,14 +735,14 @@ with st.sidebar:
             /* Hover Tabs in Dark Mode */
             .stTabs [data-baseweb="tab"]:hover,
             .stTabs button[role="tab"]:hover {
-                color: #f0f6fc !important;
-                background: rgba(255, 255, 255, 0.05) !important;
-                background-color: rgba(255, 255, 255, 0.05) !important;
-                border-color: rgba(255, 255, 255, 0.08) !important;
+                color: #58a6ff !important;
+                background: rgba(31, 111, 235, 0.2) !important;
+                background-color: rgba(31, 111, 235, 0.2) !important;
+                border-color: rgba(88, 166, 255, 0.4) !important;
             }
             .stTabs [data-baseweb="tab"]:hover *,
             .stTabs button[role="tab"]:hover * {
-                color: #f0f6fc !important;
+                color: #58a6ff !important;
             }
 
             /* Active Selected Tab in Dark Mode */
@@ -708,44 +770,24 @@ with st.sidebar:
             }
 
             /* Cards & Content Containers in Dark Mode */
-            .placeholder-card {
-                background: linear-gradient(145deg, rgba(13,17,23,0.9), rgba(22,27,34,0.95)) !important;
-                border: 1px solid rgba(88,166,255,0.2) !important;
-                box-shadow: 0 16px 40px rgba(0,0,0,0.5) !important;
+            .placeholder-card, .hero-signal-card, .metric-card, .ai-box {
+                background: linear-gradient(145deg, rgba(13, 20, 32, 0.9), rgba(9, 13, 20, 0.98)) !important;
+                border: 1px solid rgba(88, 166, 255, 0.2) !important;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
                 color: #f0f6fc !important;
+                transition: all 0.25s ease !important;
             }
-            .placeholder-card *, .placeholder-card div, .placeholder-card p, .placeholder-card h2, .placeholder-card h3 {
+            .placeholder-card:hover, .hero-signal-card:hover, .metric-card:hover, .ai-box:hover {
+                border-color: rgba(88, 166, 255, 0.45) !important;
+                box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 18px rgba(88, 166, 255, 0.18) !important;
+                transform: translateY(-2px) !important;
+            }
+            .placeholder-card *, .hero-signal-card *, .metric-card *, .ai-box * {
                 color: #f0f6fc !important;
-            }
-
-            .hero-signal-card {
-                background: linear-gradient(145deg, rgba(13, 20, 32, 0.9) 0%, rgba(9, 13, 20, 0.98) 100%) !important;
-                border: 1px solid rgba(88,166,255,0.2) !important;
-                box-shadow: 0 20px 50px rgba(0,0,0,0.6) !important;
-                color: #f0f6fc !important;
-            }
-            .hero-signal-card div {
-                color: #f0f6fc !important;
-            }
-
-            .metric-card {
-                background: linear-gradient(145deg, rgba(17, 24, 39, 0.75) 0%, rgba(13, 17, 23, 0.85) 100%) !important;
-                border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
             }
             .metric-label {
                 color: #8b949e !important;
                 font-weight: 700 !important;
-            }
-            .metric-value {
-                color: #f0f6fc !important;
-                font-weight: 700 !important;
-            }
-
-            .ai-box {
-                background: linear-gradient(135deg, rgba(13, 33, 55, 0.65) 0%, rgba(9, 21, 38, 0.85) 100%) !important;
-                border: 1px solid rgba(88, 166, 255, 0.25) !important;
-                color: #c9d1d9 !important;
             }
 
             /* Buttons in Dark Mode */
@@ -757,9 +799,10 @@ with st.sidebar:
                 font-weight: 600 !important;
             }
             .stButton > button:hover {
-                background-color: rgba(56, 139, 253, 0.15) !important;
+                background-color: rgba(56, 139, 253, 0.2) !important;
                 color: #58a6ff !important;
                 border-color: rgba(88, 166, 255, 0.4) !important;
+                transform: translateY(-1px) !important;
             }
             .stButton > button[kind="primary"] {
                 background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important;
@@ -2051,8 +2094,8 @@ with tab_research:
     st.markdown("### 🏛️ Institutional Equity Research Engine (Gemini / LLM Intelligence)")
     st.markdown(
         """
-        <div style="background:rgba(22,27,34,0.7); border:1px solid rgba(88,166,255,0.25); border-radius:12px; padding:14px 20px; margin-bottom:16px;">
-            <div style="color:#e6edf3; font-size:13.5px; line-height:1.5;">
+        <div class="ai-box" style="padding:14px 20px; margin-bottom:16px; border-radius:12px;">
+            <div style="font-size:13.5px; line-height:1.5;">
                 Act like a disciplined Indian equity research analyst using <strong>verifiable public information</strong> (annual reports, concalls, BSE/NSE filings).
                 Generate institutional-grade research across <strong>13 distinct prompts</strong> (Business Model, Moat Score, DCF Sandbox, Downside Risk Ranking, FII/DII Thesis, Bull/Bear Debate, Governance Scorecard, and Peer Tables).
             </div>
@@ -2060,6 +2103,7 @@ with tab_research:
         """,
         unsafe_allow_html=True,
     )
+
 
     r_col1, r_col2 = st.columns([1, 2.5])
 
