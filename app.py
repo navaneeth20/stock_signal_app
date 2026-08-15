@@ -132,48 +132,51 @@ header[data-testid="stHeader"],
     box-shadow: none !important;
 }
 
-/* ── Destroy ALL Streamlit BaseWeb Tab Highlight Lines, Pseudo-elements & Underlines ── */
-div[data-baseweb="tab-highlight"], 
-div[data-baseweb="tab-border"],
-[data-testid="stTab"] div[data-baseweb="tab-highlight"],
-button[role="tab"] + div,
-.stTabs [data-baseweb="tab-highlight"],
-.stTabs [data-baseweb="tab"]::after,
-.stTabs [data-baseweb="tab"]::before,
-.stTabs button[role="tab"]::after,
-.stTabs button[role="tab"]::before,
-button[data-baseweb="tab"]::after,
-button[data-baseweb="tab"]::before {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    height: 0px !important;
-    max-height: 0px !important;
-    width: 0px !important;
-    background-color: transparent !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+/* ── Segmented Navigation Bar Pill Layout ── */
+div[data-testid="stRadio"] {
+    margin-bottom: 22px !important;
 }
-
-/* ── Clean Tab List Flex Wrap & Hide Overflow Chevrons ── */
-.stTabs [data-baseweb="tab-list"],
-div[data-baseweb="tab-list"] {
+div[data-testid="stRadio"] > label {
+    display: none !important;
+}
+div[data-testid="stRadio"] [role="radiogroup"] {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 8px !important;
-    border-bottom: none !important;
     background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
 }
-.stTabs button[aria-label="Previous tab"],
-.stTabs button[aria-label="Next tab"],
-div[data-baseweb="tab-list"] > button {
+
+/* Individual Pill Base Style */
+div[data-testid="stRadio"] [role="radiogroup"] label {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 10px 18px !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    font-size: 11.5px !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    margin: 0 !important;
+    user-select: none !important;
+    line-height: 1.2 !important;
+}
+
+/* Hide Radio Circle Dots */
+div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child,
+div[data-testid="stRadio"] [role="radiogroup"] label input[type="radio"],
+div[data-testid="stRadio"] [role="radiogroup"] label span:first-child:not([data-testid="stMarkdownContainer"] *) {
     display: none !important;
     visibility: hidden !important;
     width: 0px !important;
     height: 0px !important;
-    opacity: 0 !important;
 }
+
 
 
 /* ── General Header Components ── */
@@ -494,67 +497,39 @@ with st.sidebar:
                 border-radius: 8px !important;
             }
 
-            /* Tabs Container in Light Mode */
-            .stTabs [data-baseweb="tab-list"],
-            div[data-testid="stTab"] {
-                background: #FFFFFF !important;
-                border: 1px solid #E2E8F0 !important;
-                padding: 6px !important;
-                border-radius: 12px !important;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
-            }
-
-            /* Inactive Tabs in Light Mode */
-            .stTabs [data-baseweb="tab"],
-            .stTabs button[role="tab"],
-            button[data-baseweb="tab"] {
-                color: #475569 !important;
+            /* Navigation Pills in Light Mode */
+            div[data-testid="stRadio"] [role="radiogroup"] label {
                 background: #F1F5F9 !important;
-                background-color: #F1F5F9 !important;
+                color: #475569 !important;
                 border: 1px solid #CBD5E1 !important;
-                border-radius: 8px !important;
-                padding: 8px 16px !important;
-                outline: none !important;
-                box-shadow: none !important;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
             }
-            .stTabs [data-baseweb="tab"] *, 
-            .stTabs button[role="tab"] *,
-            .stTabs [data-baseweb="tab"] p, 
-            .stTabs [data-baseweb="tab"] span,
-            .stTabs button[role="tab"] p,
-            .stTabs button[role="tab"] span {
+            div[data-testid="stRadio"] [role="radiogroup"] label p,
+            div[data-testid="stRadio"] [role="radiogroup"] label span {
                 color: #475569 !important;
                 font-weight: 700 !important;
                 font-size: 11.5px !important;
+                margin: 0 !important;
+                white-space: nowrap !important;
             }
 
-            /* Hover Tabs in Light Mode */
-            .stTabs [data-baseweb="tab"]:hover,
-            .stTabs button[role="tab"]:hover {
-                color: #1E3A8A !important;
+            div[data-testid="stRadio"] [role="radiogroup"] label:hover {
                 background: #E2E8F0 !important;
-                background-color: #E2E8F0 !important;
                 border-color: #2563EB !important;
+                transform: translateY(-1px) !important;
             }
-            .stTabs [data-baseweb="tab"]:hover *,
-            .stTabs button[role="tab"]:hover * {
+            div[data-testid="stRadio"] [role="radiogroup"] label:hover p,
+            div[data-testid="stRadio"] [role="radiogroup"] label:hover span {
                 color: #1E3A8A !important;
             }
 
-            /* Active Selected Tab in Light Mode */
-            .stTabs [aria-selected="true"], 
-            .stTabs button[aria-selected="true"],
-            .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
                 background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
-                background-color: #2563EB !important;
-                color: #FFFFFF !important;
-                border: 1px solid #1D4ED8 !important;
+                border-color: #1D4ED8 !important;
                 box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
             }
-            .stTabs [aria-selected="true"] *, 
-            .stTabs button[aria-selected="true"] *,
-            .stTabs [aria-selected="true"] p, 
-            .stTabs [aria-selected="true"] span {
+            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
+            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span {
                 color: #FFFFFF !important;
             }
 
@@ -714,85 +689,42 @@ with st.sidebar:
                 color: #8b949e !important;
             }
 
-            /* Remove Red Underline from Tabs */
-            div[data-baseweb="tab-highlight"], 
-            div[data-baseweb="tab-border"],
-            [data-testid="stTab"] div[data-baseweb="tab-highlight"],
-            button[role="tab"] + div,
-            .stTabs [data-baseweb="tab-highlight"] {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-                height: 0px !important;
-                width: 0px !important;
-                background: transparent !important;
-                background-color: transparent !important;
-                border: none !important;
-            }
-
-            /* Tabs Container in Dark Mode */
-            .stTabs [data-baseweb="tab-list"],
-            div[data-testid="stTab"] {
-                background: rgba(13, 17, 23, 0.95) !important;
-                border: 1px solid rgba(88, 166, 255, 0.18) !important;
-                padding: 6px !important;
-                border-radius: 12px !important;
-                box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
-            }
-
-            /* Inactive Tabs in Dark Mode */
-            .stTabs [data-baseweb="tab"],
-            .stTabs button[role="tab"],
-            button[data-baseweb="tab"] {
+            /* Navigation Pills in Dark Mode */
+            div[data-testid="stRadio"] [role="radiogroup"] label {
+                background: rgba(22, 27, 34, 0.8) !important;
                 color: #8b949e !important;
-                background: rgba(22, 27, 34, 0.6) !important;
-                background-color: rgba(22, 27, 34, 0.6) !important;
-                border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                border-radius: 8px !important;
-                padding: 8px 16px !important;
-                outline: none !important;
-                box-shadow: none !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
             }
-            .stTabs [data-baseweb="tab"] *, 
-            .stTabs button[role="tab"] *,
-            .stTabs [data-baseweb="tab"] p, 
-            .stTabs [data-baseweb="tab"] span,
-            .stTabs button[role="tab"] p,
-            .stTabs button[role="tab"] span {
+            div[data-testid="stRadio"] [role="radiogroup"] label p,
+            div[data-testid="stRadio"] [role="radiogroup"] label span {
                 color: #8b949e !important;
                 font-weight: 700 !important;
                 font-size: 11.5px !important;
+                margin: 0 !important;
+                white-space: nowrap !important;
             }
 
-            /* Hover Tabs in Dark Mode */
-            .stTabs [data-baseweb="tab"]:hover,
-            .stTabs button[role="tab"]:hover {
-                color: #58a6ff !important;
+            div[data-testid="stRadio"] [role="radiogroup"] label:hover {
                 background: rgba(31, 111, 235, 0.25) !important;
-                background-color: rgba(31, 111, 235, 0.25) !important;
                 border-color: rgba(88, 166, 255, 0.4) !important;
+                transform: translateY(-1px) !important;
             }
-            .stTabs [data-baseweb="tab"]:hover *,
-            .stTabs button[role="tab"]:hover * {
+            div[data-testid="stRadio"] [role="radiogroup"] label:hover p,
+            div[data-testid="stRadio"] [role="radiogroup"] label:hover span {
                 color: #58a6ff !important;
             }
 
-            /* Active Selected Tab in Dark Mode */
-            .stTabs [aria-selected="true"], 
-            .stTabs button[aria-selected="true"],
-            .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
                 background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%) !important;
-                background-color: #1f6feb !important;
-                color: #FFFFFF !important;
-                border: 1px solid #388bfd !important;
-                box-shadow: 0 4px 14px rgba(31, 111, 235, 0.4) !important;
+                border-color: #388bfd !important;
+                box-shadow: 0 4px 16px rgba(31, 111, 235, 0.45) !important;
             }
-            .stTabs [aria-selected="true"] *, 
-            .stTabs button[aria-selected="true"] *,
-            .stTabs [aria-selected="true"] p, 
-            .stTabs [aria-selected="true"] span {
+            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
+            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span {
                 color: #FFFFFF !important;
             }
+
 
 
             /* Section Headers in Dark Mode */
@@ -1190,20 +1122,33 @@ def _generate_ai_explanation(result, risk) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TABS
+# EXECUTIVE SEGMENTED NAVIGATION BAR
 # ═══════════════════════════════════════════════════════════════════════════════
 
-tab_signal, tab_chart, tab_backtest, tab_scanner, tab_watchlist, tab_research, tab_alerts = st.tabs(
-    ["SIGNAL TERMINAL", "TECHNICAL ANALYSIS", "QUANT BACKTEST", "MARKET SCANNER", "WATCHLIST & AUDIT LOGS", "INSTITUTIONAL RESEARCH", "ALERT MANAGER"]
+active_tab = st.radio(
+    "Navigation Menu",
+    [
+        "SIGNAL TERMINAL",
+        "TECHNICAL ANALYSIS",
+        "QUANT BACKTEST",
+        "MARKET SCANNER",
+        "WATCHLIST & AUDIT LOGS",
+        "INSTITUTIONAL RESEARCH",
+        "ALERT MANAGER",
+    ],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="main_segmented_nav",
 )
 
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — SIGNAL
+# SECTION 1 — SIGNAL TERMINAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_signal:
+if active_tab == "SIGNAL TERMINAL":
+
     if st.session_state.signal_result is None:
         st.markdown(
             """
@@ -1614,7 +1559,8 @@ with tab_signal:
 # TAB 2 — CHART
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_chart:
+elif active_tab == "TECHNICAL ANALYSIS":
+
     if st.session_state.df is None:
         st.info("📊 Load a stock from the sidebar to see the chart.")
     else:
@@ -1700,7 +1646,8 @@ with tab_chart:
 # TAB 3 — BACKTESTING
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_backtest:
+elif active_tab == "QUANT BACKTEST":
+
     st.markdown("### ⚡ Strategy Backtesting")
 
     bt_col1, bt_col2 = st.columns([1, 2])
@@ -1795,7 +1742,8 @@ with tab_backtest:
 # TAB 4 — SCANNER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_scanner:
+elif active_tab == "MARKET SCANNER":
+
     st.markdown("### 🌐 Overall Market Scanner & Sector Intelligence")
 
     sc_col1, sc_col2 = st.columns([1, 3])
@@ -1953,7 +1901,8 @@ with tab_scanner:
 # TAB 5 — WATCHLIST
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_watchlist:
+elif active_tab == "WATCHLIST & AUDIT LOGS":
+
     st.markdown("### ⭐ Watchlist")
 
     wl_add_col, wl_table_col = st.columns([1, 3])
@@ -2123,7 +2072,8 @@ with tab_watchlist:
 # TAB 6 — INSTITUTIONAL EQUITY RESEARCH (LLM & GEMINI INTELLIGENCE)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_research:
+elif active_tab == "INSTITUTIONAL RESEARCH":
+
     st.markdown("### 🏛️ Institutional Equity Research Engine (Gemini / LLM Intelligence)")
     st.markdown(
         """
@@ -2335,7 +2285,8 @@ with tab_research:
 # TAB 7 — ALERTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with tab_alerts:
+elif active_tab == "ALERT MANAGER":
+
 
     st.markdown("### 🔔 Alerts & Notifications")
 
