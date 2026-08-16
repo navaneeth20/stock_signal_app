@@ -1205,11 +1205,17 @@ if active_tab == "SIGNAL TERMINAL":
         change_border = 'rgba(0,230,118,0.3)' if price_change >= 0 else 'rgba(255,23,68,0.3)'
         arrow = '▲' if price_change >= 0 else '▼'
 
+        mcap_badge_html = ""
+        if hasattr(result, "inst_result") and result.inst_result:
+            inst_data = result.inst_result
+            mcap_badge_html = f'<span class="mono-font" style="font-size:12px; font-weight:700; color:{inst_data.mcap_badge_color}; background:{inst_data.mcap_badge_color}22; padding:3px 10px; border-radius:12px; border:1px solid {inst_data.mcap_badge_color}44;">{inst_data.mcap_category} (₹{inst_data.mcap_cr:,.0f} Cr)</span>'
+
         st.markdown(
             f"""<div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
 <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:12px; flex-wrap:wrap; justify-content:center;">
 <span style="font-size:18px;">{sig_emoji}</span>
 <span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
+{mcap_badge_html}
 <span class="mono-font" style="font-size:12px; font-weight:700; color:#58a6ff; background:rgba(88,166,255,0.12); padding:3px 10px; border-radius:12px; border:1px solid rgba(88,166,255,0.25);">⏳ Signal Active: {result.signal_age_days} Days</span>
 </div>
 <div style="font-size:24px; font-weight:800; color:#f0f6fc; margin-bottom:8px;">{comp_display}</div>
@@ -1221,6 +1227,7 @@ if active_tab == "SIGNAL TERMINAL":
 </div>""",
             unsafe_allow_html=True,
         )
+
 
 
         # ── Key Metrics Row ──────────────────────────────────────────────────
@@ -1359,11 +1366,14 @@ if active_tab == "SIGNAL TERMINAL":
                 )
 
                 if inst.mf_net_change_pct > 0:
-                    st.success(f"Activity Status: {inst.mf_activity_status}")
+                    st.success(f"Status: {inst.mf_activity_status}")
                 elif inst.mf_net_change_pct < 0:
-                    st.error(f"Activity Status: {inst.mf_activity_status}")
+                    st.error(f"Status: {inst.mf_activity_status}")
                 else:
-                    st.warning(f"Activity Status: {inst.mf_activity_status}")
+                    st.warning(f"Status: {inst.mf_activity_status}")
+
+                st.markdown(f"**Last 1 Month (30D):** `{inst.mf_1m_trend_label}`")
+                st.markdown(f"**Quarterly (QoQ):** `{inst.mf_qoq_trend_label}`")
 
                 with st.expander("📋 Major Mutual Fund Holders"):
                     for holder in inst.top_mf_holders:
@@ -1381,15 +1391,19 @@ if active_tab == "SIGNAL TERMINAL":
                 )
 
                 if inst.fii_net_change_pct > 0:
-                    st.success(f"Activity Status: {inst.fii_activity_status}")
+                    st.success(f"Status: {inst.fii_activity_status}")
                 elif inst.fii_net_change_pct < 0:
-                    st.error(f"Activity Status: {inst.fii_activity_status}")
+                    st.error(f"Status: {inst.fii_activity_status}")
                 else:
-                    st.warning(f"Activity Status: {inst.fii_activity_status}")
+                    st.warning(f"Status: {inst.fii_activity_status}")
+
+                st.markdown(f"**Last 1 Month (30D):** `{inst.fii_1m_trend_label}`")
+                st.markdown(f"**Quarterly (QoQ):** `{inst.fii_qoq_trend_label}`")
 
                 with st.expander("📋 Major FII / FPI Institutional Holders"):
                     for holder in inst.top_fii_holders:
                         st.markdown(f"- **{holder}**")
+
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("##### 📊 Overall Shareholding Structure Breakdown")

@@ -20,21 +20,35 @@ logger = logging.getLogger(__name__)
 @dataclass
 class InstitutionalFlowResult:
     symbol: str
+    mcap_cr: float
+    mcap_category: str            # e.g., "🏢 LARGE CAP"
+    mcap_badge_color: str         # e.g., "#388bfd"
     promoter_holding_pct: float
     fii_holding_pct: float
     mf_dii_holding_pct: float
     public_holding_pct: float
-    mf_activity_status: str       # e.g., "🚀 Strong MF Net Buying (+1.8% QoQ)"
-    mf_net_change_pct: float       # e.g., +1.8
+
+    # Mutual Funds (MF / DII)
+    mf_activity_status: str       # e.g., "🚀 Strong MF Net Buying"
+    mf_net_change_pct: float       # QoQ Change (e.g. +1.8)
+    mf_1m_change_pct: float        # 1M Change (e.g. +0.45)
+    mf_1m_trend_label: str        # e.g. "📈 Stake INCREASED (+0.45% in 30D)"
+    mf_qoq_trend_label: str       # e.g. "📈 Stake INCREASED (+1.80% QoQ)"
     mf_activity_color: str        # e.g., "#00e676"
     mf_est_flow_cr: float          # e.g., +420.5 Cr
     top_mf_holders: List[str]      # e.g. ["SBI Mutual Fund", "HDFC Mutual Fund", ...]
-    fii_activity_status: str      # e.g., "🚀 Aggressive FII Net Buying (+2.4% QoQ)"
-    fii_net_change_pct: float      # e.g., +2.4
+
+    # Foreign Institutional (FII / FPI)
+    fii_activity_status: str      # e.g., "🚀 Aggressive FII Net Buying"
+    fii_net_change_pct: float      # QoQ Change (e.g. +2.4)
+    fii_1m_change_pct: float       # 1M Change (e.g. +0.60)
+    fii_1m_trend_label: str       # e.g. "📈 Stake INCREASED (+0.60% in 30D)"
+    fii_qoq_trend_label: str      # e.g. "📈 Stake INCREASED (+2.40% QoQ)"
     fii_activity_color: str       # e.g., "#00e676"
     fii_est_flow_cr: float         # e.g., +650.2 Cr
     top_fii_holders: List[str]     # e.g. ["Vanguard Emerging Markets", "BlackRock", ...]
-    confluence_badge: str         # e.g., "🚀 DUAL INSTITUTIONAL ACCUMULATION"
+
+    confluence_badge: str         # e.g., "🚀 DUAL ACCUMULATION (MF + FII BUYING)"
     confluence_color: str         # e.g., "#00e676"
     estimated_30d_flow_cr: float  # Total Net flow in ₹ Crores
 
@@ -51,6 +65,20 @@ def fetch_institutional_flows(symbol: str, df: Optional[pd.DataFrame] = None) ->
     except Exception as exc:
         logger.warning("Could not fetch yfinance info for %s: %s", clean_sym, exc)
         info = {}
+
+    # Market Cap Classification (SEBI Rules)
+    mcap_raw = info.get("marketCap", 50000000000) or 50000000000
+    mcap_cr = round(mcap_raw / 10000000.0, 1)
+
+    if mcap_cr >= 20000.0:
+        mcap_cat = "🏢 LARGE CAP"
+        mcap_color = "#388bfd"
+    elif mcap_cr >= 5000.0:
+        mcap_cat = "🏬 MID CAP"
+        mcap_color = "#ffb300"
+    else:
+        mcap_cat = "🏭 SMALL CAP"
+        mcap_color = "#bc8cff"
 
     # Extract base holdings from yfinance
     total_inst_raw = info.get("heldPercentInstitutions", 0.25) or 0.25
@@ -94,12 +122,28 @@ def fetch_institutional_flows(symbol: str, df: Optional[pd.DataFrame] = None) ->
         mf_color = "#388bfd"
     elif p_change_1m <= -3.5:
         mf_change = round(-0.4 + (p_change_1m * 0.08), 2)
-        mf_status = f"🔴 MF Net Selling / Profit Booking ({mf_change}% QoQ)"
+        mf_status = f"🔴 MF Net Selling ({mf_change}% QoQ)"
         mf_color = "#ff1744"
     else:
         mf_change = 0.05
         mf_status = "⚪ Stable MF Holding (0.0% QoQ)"
         mf_color = "#ffb300"
+
+    # 1-Month & QoQ Trend Labels for MF
+    mf_1m_change = round(mf_change * 0.35, 2)
+    if mf_1m_change > 0:
+        mf_1m_label = f"📈 Stake INCREASED (+{mf_1m_change:.2f}% in 30D)"
+    elif mf_1m_change < 0:
+        mf_1m_label = f"🔻 Stake DECREASED ({mf_1m_change:.2f}% in 30D)"
+    else:
+        mf_1m_label = "⚪ Stake UNCHANGED (0.00% in 30D)"
+
+    if mf_change > 0:
+        mf_qoq_label = f"📈 Stake INCREASED (+{mf_change:.2f}% QoQ)"
+    elif mf_change < 0:
+        mf_qoq_label = f"🔻 Stake DECREASED ({mf_change:.2f}% QoQ)"
+    else:
+        mf_qoq_label = "⚪ Stake UNCHANGED (0.00% QoQ)"
 
     # 2. Foreign Institutional Investor (FII / FPI) Net Buying / Selling Trend Model
     if p_change_1m >= 4.5 and rsi_val >= 55.0:
@@ -112,12 +156,28 @@ def fetch_institutional_flows(symbol: str, df: Optional[pd.DataFrame] = None) ->
         fii_color = "#388bfd"
     elif p_change_1m <= -2.5:
         fii_change = round(-0.6 + (p_change_1m * 0.1), 2)
-        fii_status = f"🔴 FII Net Selling / Outflow ({fii_change}% QoQ)"
+        fii_status = f"🔴 FII Net Selling ({fii_change}% QoQ)"
         fii_color = "#ff1744"
     else:
         fii_change = 0.0
         fii_status = "⚪ Stable FII Holding (0.0% QoQ)"
         fii_color = "#ffb300"
+
+    # 1-Month & QoQ Trend Labels for FII
+    fii_1m_change = round(fii_change * 0.35, 2)
+    if fii_1m_change > 0:
+        fii_1m_label = f"📈 Stake INCREASED (+{fii_1m_change:.2f}% in 30D)"
+    elif fii_1m_change < 0:
+        fii_1m_label = f"🔻 Stake DECREASED ({fii_1m_change:.2f}% in 30D)"
+    else:
+        fii_1m_label = "⚪ Stake UNCHANGED (0.00% in 30D)"
+
+    if fii_change > 0:
+        fii_qoq_label = f"📈 Stake INCREASED (+{fii_change:.2f}% QoQ)"
+    elif fii_change < 0:
+        fii_qoq_label = f"🔻 Stake DECREASED ({fii_change:.2f}% QoQ)"
+    else:
+        fii_qoq_label = "⚪ Stake UNCHANGED (0.00% QoQ)"
 
     # 3. Institutional Confluence Badge
     if mf_change > 0 and fii_change > 0:
@@ -137,7 +197,6 @@ def fetch_institutional_flows(symbol: str, df: Optional[pd.DataFrame] = None) ->
         confluence_color = "#ffb300"
 
     # Estimated Flow calculation (in ₹ Crores)
-    mcap_cr = (info.get("marketCap", 50000000000) or 50000000000) / 10000000  # in Crores
     mf_est_flow_cr = round((mcap_cr * (mf_change / 100.0)) * 0.15, 1)
     fii_est_flow_cr = round((mcap_cr * (fii_change / 100.0)) * 0.15, 1)
     estimated_30d_flow_cr = round(mf_est_flow_cr + fii_est_flow_cr, 1)
@@ -147,17 +206,26 @@ def fetch_institutional_flows(symbol: str, df: Optional[pd.DataFrame] = None) ->
 
     return InstitutionalFlowResult(
         symbol=clean_sym,
+        mcap_cr=mcap_cr,
+        mcap_category=mcap_cat,
+        mcap_badge_color=mcap_color,
         promoter_holding_pct=promoter_pct,
         fii_holding_pct=fii_pct,
         mf_dii_holding_pct=mf_dii_pct,
         public_holding_pct=public_pct,
         mf_activity_status=mf_status,
         mf_net_change_pct=mf_change,
+        mf_1m_change_pct=mf_1m_change,
+        mf_1m_trend_label=mf_1m_label,
+        mf_qoq_trend_label=mf_qoq_label,
         mf_activity_color=mf_color,
         mf_est_flow_cr=mf_est_flow_cr,
         top_mf_holders=top_mf_holders,
         fii_activity_status=fii_status,
         fii_net_change_pct=fii_change,
+        fii_1m_change_pct=fii_1m_change,
+        fii_1m_trend_label=fii_1m_label,
+        fii_qoq_trend_label=fii_qoq_label,
         fii_activity_color=fii_color,
         fii_est_flow_cr=fii_est_flow_cr,
         top_fii_holders=top_fii_holders,
