@@ -986,14 +986,18 @@ def load_and_analyse(symbol: str) -> None:
 
             # Persist signal & search event
             save_signal(
-                symbol,
-                result.signal,
-                result.confidence,
-                risk.entry_price,
-                risk.stop_loss,
-                risk.take_profit,
-                risk.risk_reward,
-                interval,
+                symbol=symbol,
+                signal=result.signal,
+                confidence=result.confidence,
+                entry_price=risk.entry_price,
+                stop_loss=risk.stop_loss,
+                take_profit=risk.take_profit,
+                risk_reward=risk.risk_reward,
+                interval=interval,
+                reasons=result.reasons,
+                mtf_status=mtf_res.alignment_status if mtf_res else "",
+                win_prob=mc_res.win_probability if mc_res else 0.0,
+                source="Signal Terminal",
             )
 
             log_search_event(
@@ -1002,8 +1006,9 @@ def load_and_analyse(symbol: str) -> None:
                 signal=result.signal,
                 confidence=result.confidence,
                 price=risk.entry_price,
-                source="Dashboard Search",
+                source="Signal Terminal",
             )
+
 
 
             st.session_state.df = df
@@ -1795,7 +1800,30 @@ elif active_tab == "MARKET SCANNER":
                         "raw_2w": p2w,
                     })
 
+                    # Persist scanned signal to SQLite database
+                    save_signal(
+                        symbol=sym,
+                        signal=sig_r.signal,
+                        confidence=sig_r.confidence,
+                        entry_price=risk_r.entry_price,
+                        stop_loss=risk_r.stop_loss,
+                        take_profit=risk_r.take_profit,
+                        risk_reward=risk_r.risk_reward,
+                        interval="1d",
+                        reasons=sig_r.reasons[:3],
+                        source="Market Scanner",
+                    )
+                    log_search_event(
+                        symbol=sym,
+                        name=name_str,
+                        signal=sig_r.signal,
+                        confidence=sig_r.confidence,
+                        price=risk_r.entry_price,
+                        source="Market Scanner",
+                    )
+
                 except Exception as exc:
+
                     logger.warning("Scanner error for %s: %s", sym, exc)
 
             progress.empty()
@@ -1976,24 +2004,61 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
                         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### Recent Signal History (Click Analyse to Load)")
-    recent = get_recent_signals(limit=25)
+    st.markdown("#### 📜 Full Signal Audit Log & Quantitative Database Records")
+    recent = get_recent_signals(limit=50)
     if recent:
-        for idx, r in enumerate(recent):
-            col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 2, 1.5])
+        sig_df = pd.DataFrame(recent)
+        
+        # Download full audit log CSV button
+        csv_data = sig_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Full Signal Audit Log (CSV)",
+            data=csv_data,
+            file_name=f"signals_audit_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            key="dl_signals_csv",
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        for idx, r in enumerate(recent[:20]):
             sym = r["symbol"]
             sig = r["signal"]
-            conf = r["confidence"]
+            conf = r.get("confidence", 0.0)
+            entry = r.get("entry_price", 0.0)
+            sl = r.get("stop_loss", 0.0)
+            tp = r.get("take_profit", 0.0)
+            rr = r.get("risk_reward", 0.0)
+            src = r.get("source", "Signal Terminal")
             dt_str = str(r.get("generated_at", ""))[:16]
             sig_c = SIGNAL_COLORS.get(sig, "#9e9e9e")
 
-            col1.markdown(f"**{sym}**")
-            col2.markdown(f"<span style='color:{sig_c}; font-weight:700;'>{sig}</span>", unsafe_allow_html=True)
-            col3.markdown(f"<span class='mono-font'>{conf:.1f}%</span>", unsafe_allow_html=True)
-            col4.markdown(f"<span style='color:#8b949e; font-size:12px;'>{dt_str}</span>", unsafe_allow_html=True)
-            if col5.button("Analyse", key=f"hist_btn_{idx}_{sym}"):
-                load_and_analyse(sym)
-                st.rerun()
+            with st.expander(f"{sym} — {sig} ({conf:.1f}% Conf) | Entry: ₹{entry:,.2f} | {dt_str}"):
+                col1, col2, col3, col4 = st.columns(4)
+                col1.markdown(f"**Signal:** <span style='color:{sig_c}; font-weight:700;'>{sig}</span>", unsafe_allow_html=True)
+                col2.markdown(f"**Entry Price:** ₹{entry:,.2f}")
+                col3.markdown(f"**Stop Loss:** ₹{sl:,.2f}")
+                col4.markdown(f"**Take Profit:** ₹{tp:,.2f}")
+
+                m1, m2, m3, m4 = st.columns(4)
+                m1.markdown(f"**Confidence:** {conf:.1f}%")
+                m2.markdown(f"**Risk:Reward:** 1:{rr:.1f}")
+                m3.markdown(f"**Source:** `{src}`")
+                m4.markdown(f"**Generated:** `{dt_str}`")
+
+                if r.get("reasons"):
+                    st.markdown("**Signal Reasons:**")
+                    try:
+                        import json
+                        reasons_list = json.loads(r["reasons"]) if isinstance(r["reasons"], str) and r["reasons"].startswith("[") else [r["reasons"]]
+                        for re in reasons_list:
+                            st.markdown(f"- {re}")
+                    except Exception:
+                        st.markdown(f"- {r['reasons']}")
+
+                if st.button(f"Analyse {sym}", key=f"hist_btn_{idx}_{sym}"):
+                    load_and_analyse(sym)
+                    st.rerun()
+
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)

@@ -26,7 +26,7 @@ def _get_conn() -> sqlite3.Connection:
 
 
 def initialise_db() -> None:
-    """Create all required tables if they don't exist."""
+    """Create all required tables if they don't exist and run schema migrations."""
     with _get_conn() as conn:
         conn.executescript(
             """
@@ -49,6 +49,10 @@ def initialise_db() -> None:
                 take_profit REAL,
                 risk_reward REAL,
                 interval    TEXT,
+                reasons     TEXT,
+                mtf_status  TEXT,
+                win_prob    REAL,
+                source      TEXT DEFAULT 'Signal Terminal',
                 generated_at TEXT DEFAULT (datetime('now'))
             );
 
@@ -82,6 +86,19 @@ def initialise_db() -> None:
                 ON users (email);
             """
         )
+
+        # Automatic schema migration for existing databases
+        cursor = conn.execute("PRAGMA table_info(signal_history)")
+        existing_cols = [r["name"] for r in cursor.fetchall()]
+        if "reasons" not in existing_cols:
+            conn.execute("ALTER TABLE signal_history ADD COLUMN reasons TEXT")
+        if "mtf_status" not in existing_cols:
+            conn.execute("ALTER TABLE signal_history ADD COLUMN mtf_status TEXT")
+        if "win_prob" not in existing_cols:
+            conn.execute("ALTER TABLE signal_history ADD COLUMN win_prob REAL")
+        if "source" not in existing_cols:
+            conn.execute("ALTER TABLE signal_history ADD COLUMN source TEXT DEFAULT 'Signal Terminal'")
+
     logger.info("Database initialised at %s", DB_PATH)
 
 
@@ -146,20 +163,40 @@ def save_signal(
     take_profit: float,
     risk_reward: float,
     interval: str = "1d",
+    reasons: Optional[list[str] | str] = None,
+    mtf_status: Optional[str] = None,
+    win_prob: Optional[float] = None,
+    source: str = "Signal Terminal",
 ) -> None:
     """Persist a generated signal to the database."""
     try:
+        import json
+        reasons_str = json.dumps(reasons) if isinstance(reasons, list) else (reasons or "")
         with _get_conn() as conn:
             conn.execute(
                 """
                 INSERT INTO signal_history
-                (symbol, signal, confidence, entry_price, stop_loss, take_profit, risk_reward, interval)
-                VALUES (?,?,?,?,?,?,?,?)
+                (symbol, signal, confidence, entry_price, stop_loss, take_profit, risk_reward, interval, reasons, mtf_status, win_prob, source)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
-                (symbol, signal, confidence, entry_price, stop_loss, take_profit, risk_reward, interval),
+                (
+                    symbol.upper(),
+                    signal,
+                    confidence,
+                    entry_price,
+                    stop_loss,
+                    take_profit,
+                    risk_reward,
+                    interval,
+                    reasons_str,
+                    mtf_status or "",
+                    win_prob or 0.0,
+                    source,
+                ),
             )
     except Exception as exc:  # noqa: BLE001
         logger.error("save_signal error: %s", exc)
+
 
 
 def get_recent_signals(symbol: Optional[str] = None, limit: int = 50) -> list[dict]:
