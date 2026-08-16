@@ -15,7 +15,9 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
+from textwrap import dedent
 from typing import Optional
+
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -1343,7 +1345,7 @@ if active_tab == "SIGNAL TERMINAL":
             st.markdown('<div class="section-header">🏛️ INSTITUTIONAL MONEY FLOWS & SHAREHOLDING (MFs & FIIs)</div>', unsafe_allow_html=True)
 
             flow_color = "#00e676" if inst.estimated_30d_flow_cr >= 0 else "#ff1744"
-            st.markdown(
+            inst_card_html = dedent(
                 f"""
                 <div class="metric-card" style="border-top:3px solid {inst.confluence_color}; margin-bottom:16px; padding:18px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
@@ -1388,9 +1390,10 @@ if active_tab == "SIGNAL TERMINAL":
                         </div>
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+            ).strip()
+            st.markdown(inst_card_html, unsafe_allow_html=True)
+
 
         st.markdown("<br>", unsafe_allow_html=True)
 
