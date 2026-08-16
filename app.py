@@ -1960,7 +1960,11 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
 
     if sector_data:
         top_sector = sector_data[0]
-        st.markdown(f"#### 🏆 Top Outperforming Industry: <span style='color:{top_sector[\"trend_color\"]};'>{top_sector[\"sector\"]} ({top_sector[\"ret_1m\"]:+.2f}% 1M)</span>", unsafe_allow_html=True)
+        t_color = top_sector["trend_color"]
+        t_sec = top_sector["sector"]
+        t_ret = top_sector["ret_1m"]
+        st.markdown(f"#### 🏆 Top Outperforming Industry: <span style='color:{t_color};'>{t_sec} ({t_ret:+.2f}% 1M)</span>", unsafe_allow_html=True)
+
 
         c1, c2, c3, c4 = st.columns(4)
         c1.markdown(
