@@ -1339,63 +1339,68 @@ if active_tab == "SIGNAL TERMINAL":
                 unsafe_allow_html=True,
             )
 
-        # ── Institutional Ownership & Money Flows (FIIs Buying / MFs Buying) ──
+        # ── Institutional Ownership & Money Flows (MFs & FIIs Separated) ──────
         if hasattr(result, "inst_result") and result.inst_result:
             inst = result.inst_result
-            st.markdown('<div class="section-header">🏛️ INSTITUTIONAL MONEY FLOWS & SHAREHOLDING (MFs & FIIs)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">🏛️ INSTITUTIONAL MONEY FLOWS & SHAREHOLDING</div>', unsafe_allow_html=True)
+            st.info(f"**Institutional Accumulation Confluence:** {inst.confluence_badge}")
 
-            flow_color = "#00e676" if inst.estimated_30d_flow_cr >= 0 else "#ff1744"
-            inst_card_html = dedent(
-                f"""
-                <div class="metric-card" style="border-top:3px solid {inst.confluence_color}; margin-bottom:16px; padding:18px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-                        <span style="font-size:15px; font-weight:800; color:#f0f6fc;">Institutional Accumulation Status</span>
-                        <span style="font-size:12px; font-weight:800; color:{inst.confluence_color}; background:{inst.confluence_color}22; padding:4px 14px; border-radius:14px; border:1px solid {inst.confluence_color}44;">
-                            {inst.confluence_badge}
-                        </span>
-                    </div>
+            mf_col, fii_col = st.columns(2)
 
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:16px;">
-                        <div style="background:rgba(255,255,255,0.03); padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
-                            <div style="font-size:11px; color:#8b949e; text-transform:uppercase; font-weight:700;">Mutual Funds (MFs) Activity</div>
-                            <div style="font-size:14px; font-weight:800; color:{inst.mf_activity_color}; margin-top:4px;">{inst.mf_activity_status}</div>
-                            <div style="font-size:11.5px; color:#c9d1d9; margin-top:6px;">MF Shareholding Stake: <strong style="color:#58a6ff;">{inst.mf_dii_holding_pct:.1f}%</strong></div>
-                        </div>
+            with mf_col:
+                st.markdown("##### 🏦 Mutual Funds (MFs / DIIs) Intelligence")
+                m1, m2 = st.columns(2)
+                m1.metric("MF Holding Stake", f"{inst.mf_dii_holding_pct:.1f}%")
+                m2.metric(
+                    "Est. 30D MF Net Flow",
+                    f"₹{inst.mf_est_flow_cr:+,.1f} Cr",
+                    delta=f"{inst.mf_net_change_pct:+.2f}% QoQ",
+                    delta_color="normal" if inst.mf_net_change_pct >= 0 else "inverse",
+                )
 
-                        <div style="background:rgba(255,255,255,0.03); padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
-                            <div style="font-size:11px; color:#8b949e; text-transform:uppercase; font-weight:700;">Foreign Institutional (FIIs) Activity</div>
-                            <div style="font-size:14px; font-weight:800; color:{inst.fii_activity_color}; margin-top:4px;">{inst.fii_activity_status}</div>
-                            <div style="font-size:11.5px; color:#c9d1d9; margin-top:6px;">FII Shareholding Stake: <strong style="color:#58a6ff;">{inst.fii_holding_pct:.1f}%</strong></div>
-                        </div>
+                if inst.mf_net_change_pct > 0:
+                    st.success(f"Activity Status: {inst.mf_activity_status}")
+                elif inst.mf_net_change_pct < 0:
+                    st.error(f"Activity Status: {inst.mf_activity_status}")
+                else:
+                    st.warning(f"Activity Status: {inst.mf_activity_status}")
 
-                        <div style="background:rgba(255,255,255,0.03); padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
-                            <div style="font-size:11px; color:#8b949e; text-transform:uppercase; font-weight:700;">Est. 30D Institutional Net Flow</div>
-                            <div style="font-size:17px; font-weight:800; color:{flow_color}; margin-top:4px;">₹{inst.estimated_30d_flow_cr:+,.1f} Cr</div>
-                            <div style="font-size:11.5px; color:#c9d1d9; margin-top:6px;">Promoter Stake: <strong>{inst.promoter_holding_pct:.1f}%</strong></div>
-                        </div>
-                    </div>
+                with st.expander("📋 Major Mutual Fund Holders"):
+                    for holder in inst.top_mf_holders:
+                        st.markdown(f"- **{holder}**")
 
-                    <div>
-                        <div style="display:flex; justify-content:space-between; font-size:11px; color:#8b949e; margin-bottom:4px;">
-                            <span>Promoters ({inst.promoter_holding_pct:.1f}%)</span>
-                            <span>FIIs ({inst.fii_holding_pct:.1f}%)</span>
-                            <span>MFs/DIIs ({inst.mf_dii_holding_pct:.1f}%)</span>
-                            <span>Public ({inst.public_holding_pct:.1f}%)</span>
-                        </div>
-                        <div style="display:flex; height:8px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,0.05);">
-                            <div style="width:{inst.promoter_holding_pct}%; background:#388bfd;" title="Promoters"></div>
-                            <div style="width:{inst.fii_holding_pct}%; background:#00e5ff;" title="FIIs"></div>
-                            <div style="width:{inst.mf_dii_holding_pct}%; background:#00e676;" title="MFs/DIIs"></div>
-                            <div style="width:{inst.public_holding_pct}%; background:#8b949e;" title="Public"></div>
-                        </div>
-                    </div>
-                </div>
-                """
-            ).strip()
-            st.markdown(inst_card_html, unsafe_allow_html=True)
+            with fii_col:
+                st.markdown("##### 🌍 Foreign Institutional (FIIs / FPIs) Intelligence")
+                f1, f2 = st.columns(2)
+                f1.metric("FII Holding Stake", f"{inst.fii_holding_pct:.1f}%")
+                f2.metric(
+                    "Est. 30D FII Net Flow",
+                    f"₹{inst.fii_est_flow_cr:+,.1f} Cr",
+                    delta=f"{inst.fii_net_change_pct:+.2f}% QoQ",
+                    delta_color="normal" if inst.fii_net_change_pct >= 0 else "inverse",
+                )
 
+                if inst.fii_net_change_pct > 0:
+                    st.success(f"Activity Status: {inst.fii_activity_status}")
+                elif inst.fii_net_change_pct < 0:
+                    st.error(f"Activity Status: {inst.fii_activity_status}")
+                else:
+                    st.warning(f"Activity Status: {inst.fii_activity_status}")
+
+                with st.expander("📋 Major FII / FPI Institutional Holders"):
+                    for holder in inst.top_fii_holders:
+                        st.markdown(f"- **{holder}**")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("##### 📊 Overall Shareholding Structure Breakdown")
+            sb1, sb2, sb3, sb4 = st.columns(4)
+            sb1.metric("Promoter Stake", f"{inst.promoter_holding_pct:.1f}%")
+            sb2.metric("Mutual Funds (DII)", f"{inst.mf_dii_holding_pct:.1f}%")
+            sb3.metric("FII / FPI Stake", f"{inst.fii_holding_pct:.1f}%")
+            sb4.metric("Retail / Public", f"{inst.public_holding_pct:.1f}%")
 
         st.markdown("<br>", unsafe_allow_html=True)
+
 
 
         # ── Two columns: Indicator scores + Analysis ──────────────────────
