@@ -56,7 +56,9 @@ from data.fetch_data import (
     get_stock_name,
     normalise_symbol,
 )
+from data.institutional_flows import fetch_institutional_flows
 from data.news_sentiment import fetch_news_sentiment
+
 
 from database import (
     add_to_watchlist,
@@ -975,13 +977,20 @@ def load_and_analyse(symbol: str) -> None:
             # Apply MTF confidence modifier
             result.confidence = max(0.0, min(100.0, result.confidence + mtf_res.confidence_modifier))
 
-            # 2. Market Sentiment & News Intelligence
+            # 2. Institutional Ownership & FII/MF Money Flows
+            inst_res = fetch_institutional_flows(symbol, df)
+            result.inst_result = inst_res
+            if inst_res.mf_net_change_pct > 0 and inst_res.fii_net_change_pct > 0:
+                result.confidence = max(0.0, min(100.0, result.confidence + 5.0))
+
+            # 3. Market Sentiment & News Intelligence
             news_res = fetch_news_sentiment(symbol, comp_name)
             result.news_result = news_res
 
-            # 3. Quantitative Risk & Monte Carlo Simulation
+            # 4. Quantitative Risk & Monte Carlo Simulation
             mc_res = run_monte_carlo_simulation(df, risk.entry_price, risk.stop_loss, risk.take_profit)
             result.mc_result = mc_res
+
 
             # Find better sector/category alternatives
             sector_category, alternatives = _find_better_alternatives(symbol, result.confidence)
@@ -1328,7 +1337,63 @@ if active_tab == "SIGNAL TERMINAL":
                 unsafe_allow_html=True,
             )
 
+        # ── Institutional Ownership & Money Flows (FIIs Buying / MFs Buying) ──
+        if hasattr(result, "inst_result") and result.inst_result:
+            inst = result.inst_result
+            st.markdown('<div class="section-header">🏛️ INSTITUTIONAL MONEY FLOWS & SHAREHOLDING (MFs & FIIs)</div>', unsafe_allow_html=True)
+
+            flow_color = "#00e676" if inst.estimated_30d_flow_cr >= 0 else "#ff1744"
+            st.markdown(
+                f"""
+                <div class="metric-card" style="border-top:3px solid {inst.confluence_color}; margin-bottom:16px; padding:18px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+                        <span style="font-size:15px; font-weight:800; color:#f0f6fc;">Institutional Accumulation Status</span>
+                        <span style="font-size:12px; font-weight:800; color:{inst.confluence_color}; background:{inst.confluence_color}22; padding:4px 14px; border-radius:14px; border:1px solid {inst.confluence_color}44;">
+                            {inst.confluence_badge}
+                        </span>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:16px;">
+                        <div style="background:rgba(255,255,255,0.03); padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+                            <div style="font-size:11px; color:#8b949e; text-transform:uppercase; font-weight:700;">Mutual Funds (MFs) Activity</div>
+                            <div style="font-size:14px; font-weight:800; color:{inst.mf_activity_color}; margin-top:4px;">{inst.mf_activity_status}</div>
+                            <div style="font-size:11.5px; color:#c9d1d9; margin-top:6px;">MF Shareholding Stake: <strong style="color:#58a6ff;">{inst.mf_dii_holding_pct:.1f}%</strong></div>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.03); padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+                            <div style="font-size:11px; color:#8b949e; text-transform:uppercase; font-weight:700;">Foreign Institutional (FIIs) Activity</div>
+                            <div style="font-size:14px; font-weight:800; color:{inst.fii_activity_color}; margin-top:4px;">{inst.fii_activity_status}</div>
+                            <div style="font-size:11.5px; color:#c9d1d9; margin-top:6px;">FII Shareholding Stake: <strong style="color:#58a6ff;">{inst.fii_holding_pct:.1f}%</strong></div>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.03); padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+                            <div style="font-size:11px; color:#8b949e; text-transform:uppercase; font-weight:700;">Est. 30D Institutional Net Flow</div>
+                            <div style="font-size:17px; font-weight:800; color:{flow_color}; margin-top:4px;">₹{inst.estimated_30d_flow_cr:+,.1f} Cr</div>
+                            <div style="font-size:11.5px; color:#c9d1d9; margin-top:6px;">Promoter Stake: <strong>{inst.promoter_holding_pct:.1f}%</strong></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display:flex; justify-content:space-between; font-size:11px; color:#8b949e; margin-bottom:4px;">
+                            <span>Promoters ({inst.promoter_holding_pct:.1f}%)</span>
+                            <span>FIIs ({inst.fii_holding_pct:.1f}%)</span>
+                            <span>MFs/DIIs ({inst.mf_dii_holding_pct:.1f}%)</span>
+                            <span>Public ({inst.public_holding_pct:.1f}%)</span>
+                        </div>
+                        <div style="display:flex; height:8px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,0.05);">
+                            <div style="width:{inst.promoter_holding_pct}%; background:#388bfd;" title="Promoters"></div>
+                            <div style="width:{inst.fii_holding_pct}%; background:#00e5ff;" title="FIIs"></div>
+                            <div style="width:{inst.mf_dii_holding_pct}%; background:#00e676;" title="MFs/DIIs"></div>
+                            <div style="width:{inst.public_holding_pct}%; background:#8b949e;" title="Public"></div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         st.markdown("<br>", unsafe_allow_html=True)
+
 
         # ── Two columns: Indicator scores + Analysis ──────────────────────
         col_l, col_r = st.columns([1, 1.4])
