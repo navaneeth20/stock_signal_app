@@ -2130,6 +2130,16 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
         else:
             st.info(f"No search events logged for {eod_date_str} yet. Searches made today will automatically appear here.")
 
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+    st.markdown("### 👥 Registered User Profiles & Access Log")
+    user_list = get_all_users()
+    if user_list:
+        with st.expander(f"📋 View Registered App Users ({len(user_list)} User Record{'s' if len(user_list) > 1 else ''})"):
+            u_df = pd.DataFrame(user_list)
+            st.dataframe(u_df[["id", "name", "email", "phone", "created_at", "last_login"]], use_container_width=True)
+
+
 
 
 
