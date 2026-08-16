@@ -219,7 +219,15 @@ SECTOR_POOLS: Dict[str, List[Dict[str, str]]] = {
         {"symbol": "ADANIENT.NS", "name": "Adani Enterprises"},
         {"symbol": "ADANIPORTS.NS", "name": "Adani Ports"},
     ],
+    "Defense & Capital Goods": [
+        {"symbol": "HAL.NS", "name": "Hindustan Aeronautics"},
+        {"symbol": "BEL.NS", "name": "Bharat Electronics"},
+        {"symbol": "MAZDOCK.NS", "name": "Mazagon Dock Shipbuilders"},
+        {"symbol": "BDL.NS", "name": "Bharat Dynamics"},
+        {"symbol": "BHEL.NS", "name": "Bharat Heavy Electricals"},
+    ],
 }
+
 
 INDEX_GROUPS: Dict[str, List[Dict[str, str]]] = {
     "ALL STOCKS (100+ Liquid NSE)": ALL_STOCKS,

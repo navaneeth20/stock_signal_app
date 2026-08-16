@@ -82,7 +82,9 @@ from reports import (
     generate_fallback_institutional_report,
 )
 
+from strategies.industry_engine import analyze_sector_performance
 from strategies.risk import calculate_risk
+
 
 from strategies.signal_engine import compute_all_indicators, generate_signal
 from utils.helpers import color_for_signal, format_inr, format_volume, pct_change
@@ -1137,6 +1139,7 @@ active_tab = st.radio(
         "TECHNICAL ANALYSIS",
         "QUANT BACKTEST",
         "MARKET SCANNER",
+        "SECTOR & INDUSTRY PERFORMANCE",
         "WATCHLIST & AUDIT LOGS",
         "INSTITUTIONAL RESEARCH",
         "ALERT MANAGER",
@@ -1145,6 +1148,7 @@ active_tab = st.radio(
     label_visibility="collapsed",
     key="main_segmented_nav",
 )
+
 
 
 
@@ -1926,10 +1930,128 @@ elif active_tab == "MARKET SCANNER":
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — WATCHLIST
+# SECTION 5 — SECTOR & INDUSTRY PERFORMANCE (1-MONTH TREND FORECASTING)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
+    st.markdown("### 🏢 Industry Sector Performance & 1-Month Trend Forecasting")
+    st.markdown(
+        """
+        <div class="ai-box" style="padding:14px 20px; margin-bottom:18px; border-radius:12px;">
+            <div style="font-size:13.5px; line-height:1.5;">
+                Track real-time momentum, 1-month predictive trend forecasts, and sector rotation across key Indian market industries.
+                Quantitative scoring incorporates <strong>30-Day Returns, Moving Average Breadth (% above 20 EMA), RSI Confluence, and Outperforming Equities</strong>.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_btn, col_space = st.columns([1.5, 3])
+    with col_btn:
+        run_sector_scan = st.button("⚡ Scan Industry Sectors & 1M Forecast", type="primary", use_container_width=True)
+
+    if run_sector_scan or "sector_analysis_data" not in st.session_state:
+        with st.spinner("Analyzing Indian Industry Sectors & Computing 30-Day Trend Models..."):
+            sector_data = analyze_sector_performance()
+            st.session_state["sector_analysis_data"] = sector_data
+
+    sector_data = st.session_state.get("sector_analysis_data", [])
+
+    if sector_data:
+        top_sector = sector_data[0]
+        st.markdown(f"#### 🏆 Top Outperforming Industry: <span style='color:{top_sector[\"trend_color\"]};'>{top_sector[\"sector\"]} ({top_sector[\"ret_1m\"]:+.2f}% 1M)</span>", unsafe_allow_html=True)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(
+            f"""<div class="metric-card" style="border-top:3px solid {top_sector['trend_color']};">
+                <div class="metric-label">Leading Sector</div>
+                <div style="font-size:18px; font-weight:800; color:#f0f6fc;">{top_sector['sector']}</div>
+                <div style="font-size:12px; color:{top_sector['trend_color']}; margin-top:2px;">{top_sector['trend_icon']} {top_sector['trend_label']}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+        c2.markdown(
+            f"""<div class="metric-card">
+                <div class="metric-label">1-Month Return</div>
+                <div style="font-size:22px; font-weight:800; color:{'#00e676' if top_sector['ret_1m']>=0 else '#ff1744'};">{top_sector['ret_1m']:+.2f}%</div>
+                <div style="font-size:11px; color:#8b949e; margin-top:2px;">1W: {top_sector['ret_1w']:+.2f}% | 1D: {top_sector['ret_1d']:+.2f}%</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+        c3.markdown(
+            f"""<div class="metric-card">
+                <div class="metric-label">1M Forecast Target</div>
+                <div style="font-size:20px; font-weight:800; color:#58a6ff;">{top_sector['target_range']}</div>
+                <div style="font-size:11px; color:#8b949e; margin-top:2px;">Score: {top_sector['score_1m']:.1f}%</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+        c4.markdown(
+            f"""<div class="metric-card">
+                <div class="metric-label">Sector Breadth</div>
+                <div style="font-size:20px; font-weight:800; color:#00e676;">{top_sector['pct_above_ema20']:.0f}% > 20 EMA</div>
+                <div style="font-size:11px; color:#8b949e; margin-top:2px;">RSI: {top_sector['avg_rsi']:.1f}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 📊 Complete Industry Performance & 1-Month Trend Matrix")
+
+        matrix_rows = []
+        for s in sector_data:
+            leaders_str = ", ".join([f"{l['symbol'].replace('.NS','')} ({l['ret_1m']:+.1f}%)" for l in s['top_leaders']])
+            matrix_rows.append({
+                "Industry Sector": s["sector"],
+                "1M Return": f"{s['ret_1m']:+.2f}%",
+                "1W Return": f"{s['ret_1w']:+.2f}%",
+                "1D Return": f"{s['ret_1d']:+.2f}%",
+                "1-Month Trend Forecast": f"{s['trend_icon']} {s['trend_label']}",
+                "30-Day Target Range": s["target_range"],
+                "Sector Breadth (>20 EMA)": f"{s['pct_above_ema20']:.0f}%",
+                "Top Outperforming Leaders": leaders_str,
+            })
+
+        st.dataframe(pd.DataFrame(matrix_rows), use_container_width=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 🏢 Detailed Sector Breakdown & 30-Day Outlook Cards")
+
+        for sec in sector_data:
+            with st.expander(f"{sec['trend_icon']} {sec['sector']} — 1M Return: {sec['ret_1m']:+.2f}% | Forecast: {sec['trend_label']}"):
+                st.markdown(f"**30-Day Outlook Note:** {sec['outlook_text']}")
+                st.markdown(f"**Expected 30-Day Price Movement Target:** <span style='color:{sec['trend_color']}; font-weight:800;'>{sec['target_range']}</span>", unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("**⭐ Top Performing Equities in this Sector:**")
+
+                l_cols = st.columns(len(sec["top_leaders"]))
+                for idx, leader in enumerate(sec["top_leaders"]):
+                    with l_cols[idx]:
+                        st.markdown(
+                            f"""
+                            <div class="metric-card" style="padding:12px; border:1px solid rgba(88,166,255,0.25);">
+                                <div style="font-weight:800; font-size:14px; color:#58a6ff;">{leader['symbol'].replace('.NS','')}</div>
+                                <div style="font-size:11px; color:#8b949e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{leader['name']}</div>
+                                <div style="font-size:14px; font-weight:800; color:{'#00e676' if leader['ret_1m']>=0 else '#ff1744'}; margin-top:4px;">1M: {leader['ret_1m']:+.2f}%</div>
+                                <div style="font-size:11px; color:#c9d1d9;">Price: ₹{leader['price']:,.2f}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                        if st.button(f"Analyse {leader['symbol'].replace('.NS','')}", key=f"sec_lead_{sec['sector']}_{idx}"):
+                            load_and_analyse(leader['symbol'])
+                            st.rerun()
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — WATCHLIST
 # ═══════════════════════════════════════════════════════════════════════════════
 
 elif active_tab == "WATCHLIST & AUDIT LOGS":
+
 
     st.markdown("### ⭐ Watchlist")
 
