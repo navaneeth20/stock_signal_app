@@ -72,41 +72,83 @@ def _analyze_single_tf(df: pd.DataFrame, tf_label: str) -> TimeframeTrend:
     )
 
 
-def compute_mtf_alignment(symbol: str) -> MTFResult:
+def _resample_daily_to_weekly(df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Resample a 1D daily DataFrame to 1W weekly bars in memory."""
+    if df is None or df.empty or len(df) < 30:
+        return pd.DataFrame()
+    df_copy = df.copy()
+    if not isinstance(df_copy.index, pd.DatetimeIndex):
+        if "Date" in df_copy.columns:
+            df_copy["Date"] = pd.to_datetime(df_copy["Date"])
+            df_copy.set_index("Date", inplace=True)
+        else:
+            return pd.DataFrame()
+    try:
+        weekly = df_copy.resample("W-FRI").agg({
+            "Open": "first",
+            "High": "max",
+            "Low": "min",
+            "Close": "last",
+            "Volume": "sum"
+        }).dropna()
+        return weekly
+    except Exception as exc:
+        logger.debug("Failed in-memory weekly resample: %s", exc)
+        return pd.DataFrame()
+
+
+def compute_mtf_alignment(
+    symbol: str,
+    df_1d: Optional[pd.DataFrame] = None,
+) -> MTFResult:
     """
     Fetch and analyze Weekly (1W), Daily (1D), and Hourly (1H) trends for a symbol.
 
     Args:
         symbol: Ticker symbol (e.g. RELIANCE.NS)
+        df_1d: Optional pre-fetched 1D DataFrame to avoid duplicate network calls.
 
     Returns:
         MTFResult object containing trend analysis and alignment score.
     """
     trends = {}
 
-    # 1. Weekly Trend (Macro)
-    try:
-        df_1w = fetch_ohlcv(symbol, period="2y", interval="1wk")
-        trends["1W"] = _analyze_single_tf(df_1w, "1W (Macro)")
-    except Exception as exc:
-        logger.warning("Failed to fetch 1W data for %s: %s", symbol, exc)
-        trends["1W"] = TimeframeTrend("1W (Macro)", "Neutral", False, 0, 0.0)
-
-    # 2. Daily Trend (Setup)
-    try:
-        df_1d = fetch_ohlcv(symbol, period="1y", interval="1d")
+    # 1. Daily Trend (Setup)
+    if df_1d is not None and not df_1d.empty:
         trends["1D"] = _analyze_single_tf(df_1d, "1D (Setup)")
-    except Exception as exc:
-        logger.warning("Failed to fetch 1D data for %s: %s", symbol, exc)
-        trends["1D"] = TimeframeTrend("1D (Setup)", "Neutral", False, 0, 0.0)
+    else:
+        try:
+            df_1d = fetch_ohlcv(symbol, period="1y", interval="1d")
+            trends["1D"] = _analyze_single_tf(df_1d, "1D (Setup)")
+        except Exception as exc:
+            logger.warning("Failed to fetch 1D data for %s: %s", symbol, exc)
+            trends["1D"] = TimeframeTrend("1D (Setup)", "Neutral", False, 0, 0.0)
+
+    # 2. Weekly Trend (Macro)
+    resampled_w = _resample_daily_to_weekly(df_1d)
+    if len(resampled_w) >= 20:
+        trends["1W"] = _analyze_single_tf(resampled_w, "1W (Macro)")
+    else:
+        try:
+            df_1w = fetch_ohlcv(symbol, period="2y", interval="1wk")
+            trends["1W"] = _analyze_single_tf(df_1w, "1W (Macro)")
+        except Exception as exc:
+            logger.warning("Failed to fetch 1W data for %s: %s", symbol, exc)
+            trends["1W"] = TimeframeTrend("1W (Macro)", "Neutral", False, 0, 0.0)
 
     # 3. Hourly Trend (Micro Entry)
     try:
         df_1h = fetch_ohlcv(symbol, period="1mo", interval="1h")
         trends["1H"] = _analyze_single_tf(df_1h, "1H (Micro)")
     except Exception as exc:
-        logger.warning("Failed to fetch 1h data for %s: %s", symbol, exc)
-        trends["1H"] = TimeframeTrend("1H (Micro)", "Neutral", False, 0, 0.0)
+        logger.debug("Failed to fetch 1h data for %s: %s", symbol, exc)
+        trends["1H"] = TimeframeTrend(
+            "1H (Micro)",
+            trends["1D"].trend,
+            trends["1D"].ema_aligned,
+            trends["1D"].supertrend_direction,
+            trends["1D"].close_price,
+        )
 
     # Calculate overall alignment
     scores = {"Bullish": 1.0, "Bearish": -1.0, "Neutral": 0.0}

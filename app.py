@@ -855,6 +855,13 @@ def _find_better_alternatives(current_symbol: str, current_confidence: float) ->
                 continue
             d = compute_all_indicators(raw)
             res = generate_signal(sym, d)
+            mtf_alt = compute_mtf_alignment(sym, df_1d=d)
+            apply_confidence_modifier(
+                res,
+                mtf_alt.confidence_modifier,
+                "Multi-timeframe alignment",
+                f"({mtf_alt.alignment_status})",
+            )
             if res.confidence >= current_confidence or (res.signal in ("Strong Buy", "Buy") and res.confidence >= 60):
                 last_p = d["Close"].iloc[-1]
                 prev_p = d["Close"].iloc[-2] if len(d) >1 else last_p
@@ -1914,6 +1921,13 @@ elif active_tab == "Scanner":
                 try:
                     enriched = compute_all_indicators(raw)
                     sig_r = generate_signal(sym, enriched)
+                    mtf_scan = compute_mtf_alignment(sym, df_1d=enriched)
+                    apply_confidence_modifier(
+                        sig_r,
+                        mtf_scan.confidence_modifier,
+                        "Multi-timeframe alignment",
+                        f"({mtf_scan.alignment_status})",
+                    )
                     risk_r = calculate_risk(enriched, sig_r.signal)
                     last = enriched.iloc[-1]
                     prev = enriched.iloc[-2] if len(enriched) >1 else last
@@ -2242,6 +2256,13 @@ elif active_tab == "Watchlist":
                             wl_df = fetch_ohlcv(sym, interval="1d", period="6mo")
                             wl_df = compute_all_indicators(wl_df)
                             sig_r = generate_signal(sym, wl_df)
+                            mtf_wl = compute_mtf_alignment(sym, df_1d=wl_df)
+                            apply_confidence_modifier(
+                                sig_r,
+                                mtf_wl.confidence_modifier,
+                                "Multi-timeframe alignment",
+                                f"({mtf_wl.alignment_status})",
+                            )
                             last = wl_df.iloc[-1]
                             prev = wl_df.iloc[-2]
                             chg = pct_change(float(prev["Close"]), float(last["Close"]))
@@ -2518,6 +2539,13 @@ elif active_tab == "Research":
                     df_res = fetch_ohlcv(res_symbol, interval="1d", period="6mo")
                     df_res = compute_all_indicators(df_res)
                     sig_res = generate_signal(res_symbol, df_res)
+                    mtf_report = compute_mtf_alignment(res_symbol, df_1d=df_res)
+                    apply_confidence_modifier(
+                        sig_res,
+                        mtf_report.confidence_modifier,
+                        "Multi-timeframe alignment",
+                        f"({mtf_report.alignment_status})",
+                    )
                     risk_res = calculate_risk(df_res, sig_res.signal)
                     curr_price = float(df_res["Close"].iloc[-1])
                     curr_sig = sig_res.signal
