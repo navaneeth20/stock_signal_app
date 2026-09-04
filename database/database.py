@@ -445,6 +445,22 @@ def register_user(name: str, phone: str, email: str, password: str) -> tuple[boo
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         with _get_conn() as conn:
+            row = conn.execute(
+                "SELECT id, password_hash FROM users WHERE LOWER(email) = LOWER(?)", (clean_email,)
+            ).fetchone()
+            if row:
+                if not dict(row).get("password_hash"):
+                    conn.execute(
+                        """
+                        UPDATE users
+                        SET name = ?, phone = ?, password_hash = ?, last_login = ?
+                        WHERE id = ?
+                        """,
+                        (clean_name, clean_phone, hash_password(password), now_str, row["id"]),
+                    )
+                    return True, "Account password updated successfully.", get_user_by_email(clean_email)
+                return False, "An account with that email already exists. Sign in instead.", None
+
             conn.execute(
                 """
                 INSERT INTO users (name, phone, email, password_hash, created_at, last_login)
@@ -496,7 +512,7 @@ def authenticate_user(email: str, password: str) -> tuple[bool, str, Optional[di
     if not stored_hash:
         return (
             False,
-            "This account predates password sign-in. Please register again with a password.",
+            "This account predates password sign-in. Please use the 'Create account' tab to set your password.",
             None,
         )
 
