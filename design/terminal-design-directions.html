@@ -1,0 +1,587 @@
+<title>Terminal Design Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --chrome-bg:#15181C;
+  --chrome-panel:#1C2026;
+  --chrome-ink:#E6E9ED;
+  --chrome-ink-2:#98A1AC;
+  --chrome-ink-3:#6A737E;
+  --chrome-rule:#2A2F36;
+  --chrome-accent:#C8A15A;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--chrome-bg);
+  color:var(--chrome-ink);
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  font-size:15px;line-height:1.6;
+  padding:0 24px 90px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1140px;margin:0 auto}
+header{padding:54px 0 0}
+.kicker{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--chrome-accent);
+  display:flex;align-items:center;gap:14px;
+}
+.kicker::after{content:"";flex:1;height:1px;background:var(--chrome-rule)}
+h1{
+  font-family:'Source Serif 4',Georgia,serif;font-weight:700;
+  font-size:clamp(32px,5vw,46px);line-height:1.06;letter-spacing:-.02em;
+  margin:16px 0 14px;text-wrap:balance;
+}
+.lede{color:var(--chrome-ink-2);font-size:17px;line-height:1.6;max-width:66ch;margin:0 0 34px}
+.lede strong{color:var(--chrome-ink);font-weight:600}
+
+.opt{margin-top:64px}
+.opt-head{
+  display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  border-top:2px solid var(--chrome-ink);padding-top:16px;margin-bottom:6px;
+}
+.opt-id{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+  letter-spacing:.1em;color:var(--chrome-bg);background:var(--chrome-accent);
+  padding:3px 9px;border-radius:2px;flex:none;
+}
+.opt-name{font-family:'Source Serif 4',Georgia,serif;font-size:27px;font-weight:600;letter-spacing:-.01em;margin:0}
+.opt-why{color:var(--chrome-ink-2);font-size:15.5px;max-width:70ch;margin:0 0 6px}
+.opt-cost{color:var(--chrome-ink-3);font-size:14.5px;max-width:70ch;margin:0 0 22px}
+.opt-cost b{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--chrome-accent);font-weight:600;
+  margin-right:8px;
+}
+.stage{
+  background:var(--chrome-panel);border:1px solid var(--chrome-rule);
+  border-radius:4px;padding:18px;overflow-x:auto;
+  box-shadow:0 20px 50px -24px rgba(0,0,0,.8);
+}
+.frame{width:1040px;border:1px solid var(--chrome-rule);overflow:hidden}
+
+.closing{margin-top:76px;border-top:2px solid var(--chrome-ink);padding-top:18px}
+.closing h2{font-family:'Source Serif 4',Georgia,serif;font-size:23px;font-weight:600;margin:0 0 10px}
+.closing p{color:var(--chrome-ink-2);font-size:15.5px;max-width:68ch;margin:0 0 12px}
+.closing code{font-family:'IBM Plex Mono',monospace;font-size:.87em;background:var(--chrome-panel);padding:1px 6px;border-radius:2px;color:var(--chrome-ink)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--chrome-rule);font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--chrome-ink-3);line-height:1.75}
+
+/* ---- scoped sample styles ---- */
+.dir-a .num{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.dir-a .lab{font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:10px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:#6B7480}
+.dir-b .num{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.dir-b .eyebrow{font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#8A8172}
+.dir-c .num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dir-c .lab{font-size:11px;font-weight:600;color:#6B7686;letter-spacing:.01em}
+.dir-c .panel{background:#FFFFFF;border:1px solid #E4E8ED;border-radius:10px}
+
+@media (max-width:700px){ body{padding:0 14px 70px} .stage{padding:10px} }
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Design Directions</div>
+  <h1>Terminal Design Directions</h1>
+  <p class="lede">Three ways the Signal Terminal could look, before I touch any code. Every screen below uses <strong>real output</strong> from your app — Reliance at ₹1,316.00, Sell at 33.2% confidence, the actual stop, target and simulation figures. No emoji, no icons, no images anywhere: hierarchy comes from type, rule weight and spacing alone. All three are plain CSS, so any of them is buildable in Streamlit.</p>
+</header>
+<section class="opt">
+  <div class="opt-head"><span class="opt-id">A</span><h2 class="opt-name">Trading Desk</h2></div>
+  <p class="opt-why">Maximum density, dark ground, monospace numerals. Hairline rules instead of cards, so the eye reads rows of data rather than a wall of boxes. Colour is spent only on buy/sell state — everything else is greyscale, which is what makes the one red number actually mean something.</p>
+  <p class="opt-cost"><b>Trade-off</b>Unforgiving for a casual user, and the density fights small screens. This is the direction that looks least like a hobby project and most like a tool someone works in all day.</p>
+  <div class="stage"><div class="frame dir-a">
+<div style="width: 1040px; background: #0B0D0F; color: #E8EAED; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
+
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 24px; border-bottom: 1px solid #1E2227;">
+    <div style="display: flex; gap: 22px; align-items: center;">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em;">STOCKSENSE</span>
+      <span class="lab" style="color: #E8EAED;">Signal Terminal</span>
+      <span class="lab">Technical</span>
+      <span class="lab">Backtest</span>
+      <span class="lab">Scanner</span>
+      <span class="lab">Sectors</span>
+    </div>
+    <span class="num" style="font-size: 11px; color: #6B7480;">NSE&nbsp; 15:30:04 IST</span>
+  </div>
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; padding: 26px 24px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 3px;">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.01em;">RELIANCE</div>
+      <div style="font-size: 12px; color: #6B7480;">Reliance Industries&nbsp; ·&nbsp; Energy &amp; Utilities&nbsp; ·&nbsp; Large Cap</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px;">
+      <div class="num" style="font-size: 30px; font-weight: 500;">1,316.00</div>
+      <div class="num" style="font-size: 12px; color: #35B37E;">+2.75&nbsp; +0.21%</div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: stretch; border-top: 1px solid #1E2227; border-bottom: 1px solid #1E2227;">
+    <div style="flex: 0 0 250px; padding: 20px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 8px;">
+      <span class="lab">Signal</span>
+      <div style="font-size: 32px; font-weight: 600; color: #E5484D; letter-spacing: -0.01em; line-height: 1;">SELL</div>
+      <span class="num" style="font-size: 11px; color: #6B7480;">held 74 sessions</span>
+    </div>
+    <div style="flex: 1; padding: 20px 24px; display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span class="lab">Confidence</span>
+        <span class="num" style="font-size: 20px; font-weight: 500; color: #E5484D;">33.2</span>
+      </div>
+      <div style="display: flex; height: 4px; background: #1E2227;">
+        <div style="width: 33.2%; background: #E5484D;"></div>
+      </div>
+      <div class="num" style="display: flex; justify-content: space-between; font-size: 9.5px; color: #4C545E;">
+        <span>0</span><span>25 SELL</span><span>45 HOLD</span><span>55 BUY</span><span>75</span><span>100</span>
+      </div>
+    </div>
+    <div style="flex: 0 0 210px; padding: 20px 24px; border-left: 1px solid #1E2227; display: flex; flex-direction: column; gap: 8px;">
+      <span class="lab">Horizon</span>
+      <div style="font-size: 15px; font-weight: 500;">7&ndash;15 sessions</div>
+      <span class="num" style="font-size: 11px; color: #6B7480;">swing &middot; daily bars</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));">
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Entry</span><span class="num" style="font-size: 17px;">1,316.00</span>
+    </div>
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Stop &mdash; above</span><span class="num" style="font-size: 17px; color: #E5484D;">1,345.29</span>
+    </div>
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Target &mdash; below</span><span class="num" style="font-size: 17px; color: #35B37E;">1,257.42</span>
+    </div>
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Reward : risk</span><span class="num" style="font-size: 17px;">1 : 2.0</span>
+    </div>
+    <div style="padding: 16px 24px; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Size @ 2% risk</span><span class="num" style="font-size: 17px;">68 sh</span>
+    </div>
+  </div>
+
+  <div style="display: flex; border-top: 1px solid #1E2227;">
+
+    <div style="flex: 1; padding: 20px 24px; border-right: 1px solid #1E2227;">
+      <div class="lab" style="margin-bottom: 14px;">Signal components</div>
+      <div style="display: flex; flex-direction: column; gap: 0;">
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">EMA trend</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 25%; background: #E5484D;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">25</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">RSI</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #6B7480;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">50</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">MACD</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 75%; background: #35B37E;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">75</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">Supertrend</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 2%; background: #E5484D;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">0</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">ADX</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #6B7480;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">50</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">Volume</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #6B7480;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">50</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0;">
+          <span style="font-size: 12px;">VWAP</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 75%; background: #35B37E;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">75</span>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="flex: 0 0 300px; padding: 20px 24px; border-right: 1px solid #1E2227;">
+      <div class="lab" style="margin-bottom: 14px;">Timeframe alignment</div>
+      <div style="display: flex; flex-direction: column; gap: 0;">
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px; color: #9AA3AE;">Weekly</span><span class="num" style="font-size: 12px; color: #E5484D;">BEARISH</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px; color: #9AA3AE;">Daily</span><span class="num" style="font-size: 12px; color: #E5484D;">BEARISH</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px; color: #9AA3AE;">Hourly</span><span class="num" style="font-size: 12px; color: #6B7480;">NEUTRAL</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 10px 0 0;">
+          <span class="lab">Confluence</span><span class="num" style="font-size: 12px;">2 of 3</span>
+        </div>
+      </div>
+      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #1E2227;">
+        <div class="lab" style="margin-bottom: 10px;">Last bar</div>
+        <div class="num" style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; font-size: 11.5px; color: #9AA3AE;">
+          <span>RSI&nbsp; 52.2</span><span>ADX&nbsp; 10.1</span>
+          <span>EMA20&nbsp; 1311.36</span><span>EMA50&nbsp; 1312.95</span>
+          <span>ATR&nbsp; 19.53</span><span>VWAP&nbsp; 1309.99</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 0 0 244px; padding: 20px 24px;">
+      <div class="lab" style="margin-bottom: 14px;">Monte Carlo &mdash; 1,000 paths</div>
+      <div style="display: flex; flex-direction: column; gap: 13px;">
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span class="lab">Prob. of profit</span>
+          <span class="num" style="font-size: 19px;">39.5<span style="font-size: 11px; color: #6B7480;">&nbsp;&plusmn; 3.0</span></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span class="lab">Expected value</span>
+          <span class="num" style="font-size: 19px;">+3.08</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span class="lab">Value at risk 95%</span>
+          <span class="num" style="font-size: 19px;">29.29</span>
+        </div>
+      </div>
+      <p style="margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: #4C545E;">Zero drift. Measures volatility, not momentum. Paths checked at daily closes.</p>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 24px; border-top: 1px solid #1E2227; font-size: 10.5px; color: #4C545E;">
+    Educational use only. Not investment advice.
+  </div>
+
+</div>
+  </div></div>
+</section>
+<section class="opt">
+  <div class="opt-head"><span class="opt-id">B</span><h2 class="opt-name">Research Note</h2></div>
+  <p class="opt-why">Paper, serif, editorial. The signal is argued in prose with a table of evidence beside it — the way a sell-side note reads. It forces the app to explain itself in sentences, which suits a tool whose whole premise is that it shows you <em>why</em>.</p>
+  <p class="opt-cost"><b>Trade-off</b>Least glanceable of the three, and it does not feel live — no ticking, no state. Better for a considered daily read than for watching a position.</p>
+  <div class="stage"><div class="frame dir-b">
+<div style="width: 1040px; background: #FBFAF7; color: #16130E; font-family: 'IBM Plex Sans', system-ui, sans-serif; padding: 0 0 34px;">
+
+  <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 20px 56px 14px; border-bottom: 2px solid #16130E;">
+    <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; font-weight: 700; letter-spacing: -0.01em;">StockSense</span>
+    <div style="display: flex; gap: 26px;">
+      <span class="eyebrow" style="color: #16130E;">Signal</span>
+      <span class="eyebrow">Technical</span>
+      <span class="eyebrow">Backtest</span>
+      <span class="eyebrow">Scanner</span>
+      <span class="eyebrow">Sectors</span>
+    </div>
+    <span class="num" style="font-size: 11px; color: #8A8172;">22 Aug 2026 &nbsp;15:30 IST</span>
+  </div>
+
+  <div style="padding: 34px 56px 0; display: grid; grid-template-columns: 1fr 300px; gap: 56px; align-items: start;">
+
+    <div style="display: flex; flex-direction: column; gap: 0;">
+      <span class="eyebrow" style="margin-bottom: 10px;">Daily signal &middot; Energy &amp; Utilities</span>
+      <h1 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 40px; font-weight: 700; line-height: 1.08; letter-spacing: -0.018em; margin: 0 0 6px; text-wrap: balance;">Reliance Industries</h1>
+      <div class="num" style="font-size: 13px; color: #6E6759; margin-bottom: 22px;">RELIANCE.NS&nbsp; &middot;&nbsp; NSE&nbsp; &middot;&nbsp; &#8377;1,316.00&nbsp; &middot;&nbsp; +0.21% today</div>
+
+      <div style="border-top: 1px solid #DCD6CA; border-bottom: 1px solid #DCD6CA; padding: 20px 0; display: flex; align-items: baseline; gap: 18px;">
+        <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 34px; font-weight: 700; color: #8C2F26; line-height: 1;">Sell</span>
+        <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; font-style: italic; color: #6E6759;">conviction 33 of 100</span>
+      </div>
+
+      <p style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.62; margin: 22px 0 0; max-width: 62ch; color: #2B261E;">
+        The twenty-day average has crossed below the fifty and price sits well under its
+        two-hundred-day line, with Supertrend short for seventy-four sessions. Momentum
+        does not confirm: MACD remains above its signal line and price is holding above
+        VWAP, which is what keeps conviction in the low thirties rather than lower.
+      </p>
+      <p style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.62; margin: 15px 0 0; max-width: 62ch; color: #2B261E;">
+        Weekly and daily trends agree; the hourly does not. ADX at 10.1 says the market is
+        ranging, so trend signals carry less weight than usual here.
+      </p>
+
+      <div style="margin-top: 30px; border-top: 1px solid #DCD6CA; padding-top: 18px;">
+        <span class="eyebrow">Evidence</span>
+        <div style="margin-top: 12px; display: flex; flex-direction: column;">
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">EMA trend</span>
+            <span style="font-size: 13px; color: #6E6759;">20 below 50; price below 200</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #8C2F26;">bearish</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">Supertrend</span>
+            <span style="font-size: 13px; color: #6E6759;">short, 74 sessions</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #8C2F26;">bearish</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">MACD</span>
+            <span style="font-size: 13px; color: #6E6759;">above signal, histogram flat</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #2F5D3A;">bullish</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">RSI</span>
+            <span style="font-size: 13px; color: #6E6759;">52.2, mid-range</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #6E6759;">neutral</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0;">
+            <span style="font-size: 13px;">Trend strength</span>
+            <span style="font-size: 13px; color: #6E6759;">ADX 10.1, market is ranging</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #6E6759;">weak</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0; border-left: 1px solid #DCD6CA; padding-left: 28px;">
+
+      <span class="eyebrow">Levels</span>
+      <div style="margin-top: 12px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Entry</span><span class="num" style="font-size: 15px;">1,316.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Stop, above</span><span class="num" style="font-size: 15px; color: #8C2F26;">1,345.29</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Target, below</span><span class="num" style="font-size: 15px; color: #2F5D3A;">1,257.42</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Reward : risk</span><span class="num" style="font-size: 15px;">1 : 2.0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0;">
+          <span style="font-size: 13px; color: #6E6759;">Size, 2% risk</span><span class="num" style="font-size: 15px;">68 shares</span>
+        </div>
+      </div>
+
+      <span class="eyebrow" style="margin-top: 26px;">Performance</span>
+      <div style="margin-top: 12px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">One week</span><span class="num" style="font-size: 13px; color: #2F5D3A;">+0.46%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Two weeks</span><span class="num" style="font-size: 13px; color: #8C2F26;">&minus;1.41%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">One month</span><span class="num" style="font-size: 13px; color: #2F5D3A;">+3.44%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0;">
+          <span style="font-size: 13px; color: #6E6759;">Below 52w high</span><span class="num" style="font-size: 13px;">18.4%</span>
+        </div>
+      </div>
+
+      <span class="eyebrow" style="margin-top: 26px;">Simulation</span>
+      <p class="num" style="margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: #2B261E;">
+        Profit odds&nbsp; 39.5 &plusmn; 3.0<br>
+        Expected&nbsp; +&#8377;3.08<br>
+        Risk 95%&nbsp; &#8377;29.29
+      </p>
+      <p style="margin: 12px 0 0; font-size: 11.5px; line-height: 1.55; color: #8A8172;">
+        1,000 paths, zero drift. Measures volatility, not momentum.
+      </p>
+
+    </div>
+  </div>
+
+  <div style="margin: 34px 56px 0; padding-top: 14px; border-top: 1px solid #DCD6CA; font-size: 11px; color: #8A8172;">
+    Educational use only. Not investment advice. Prices from Yahoo Finance, delayed.
+  </div>
+
+</div>
+  </div></div>
+</section>
+<section class="opt">
+  <div class="opt-head"><span class="opt-id">C</span><h2 class="opt-name">Control Panel</h2></div>
+  <p class="opt-why">Light neutral ground, calm panels, one accent, a clear type scale. Closest to a modern product dashboard — easiest to scan, and the easiest to extend when you add a block later without the layout falling apart.</p>
+  <p class="opt-cost"><b>Trade-off</b>Lowest density, so more scrolling. It is also the most familiar-looking of the three: safe and clean, but it will not be the thing anyone remembers.</p>
+  <div class="stage"><div class="frame dir-c">
+<div style="width: 1040px; background: #F5F7F9; color: #10161F; font-family: 'Manrope', system-ui, sans-serif; padding-bottom: 30px;">
+
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 30px; background: #FFFFFF; border-bottom: 1px solid #E4E8ED;">
+    <div style="display: flex; align-items: center; gap: 30px;">
+      <span style="font-size: 15px; font-weight: 800; letter-spacing: -0.02em;">StockSense</span>
+      <div style="display: flex; gap: 4px;">
+        <span style="font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px; background: #EEF1F6; color: #10161F;">Signal</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Technical</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Backtest</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Scanner</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Sectors</span>
+      </div>
+    </div>
+    <span class="num" style="font-size: 11.5px; color: #8B95A3;">NSE 15:30 IST</span>
+  </div>
+
+  <div style="padding: 26px 30px 0; display: flex; flex-direction: column; gap: 16px;">
+
+    <div class="panel" style="padding: 24px 26px; display: grid; grid-template-columns: 1fr 340px; gap: 40px; align-items: center;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">Reliance Industries</span>
+          <span class="num" style="font-size: 11px; font-weight: 500; color: #6B7686; background: #EEF1F6; padding: 3px 8px; border-radius: 5px;">RELIANCE.NS</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <span class="num" style="font-size: 34px; font-weight: 600;">&#8377;1,316.00</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #1F8A5B;">+0.21%</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 2px;">
+          <span style="font-size: 13px; font-weight: 700; color: #FFFFFF; background: #C0392F; padding: 5px 13px; border-radius: 6px; letter-spacing: 0.01em;">SELL</span>
+          <span style="font-size: 12.5px; color: #6B7686;">held 74 sessions &middot; 7&ndash;15 session horizon</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <span class="lab">Confidence</span>
+          <span class="num" style="font-size: 26px; font-weight: 600; color: #C0392F;">33.2%</span>
+        </div>
+        <div style="height: 6px; background: #EEF1F6; border-radius: 3px; overflow: hidden;">
+          <div style="width: 33.2%; height: 100%; background: #C0392F; border-radius: 3px;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span class="num" style="font-size: 10px; color: #A3ACB9;">Strong sell 25</span>
+          <span class="num" style="font-size: 10px; color: #A3ACB9;">Hold 45</span>
+          <span class="num" style="font-size: 10px; color: #A3ACB9;">Buy 55</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Entry</span><span class="num" style="font-size: 18px; font-weight: 600;">1,316.00</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Stop &middot; above</span><span class="num" style="font-size: 18px; font-weight: 600; color: #C0392F;">1,345.29</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Target &middot; below</span><span class="num" style="font-size: 18px; font-weight: 600; color: #1F8A5B;">1,257.42</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Reward : risk</span><span class="num" style="font-size: 18px; font-weight: 600;">1 : 2.0</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Size &middot; 2% risk</span><span class="num" style="font-size: 18px; font-weight: 600;">68 sh</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 12px; align-items: start;">
+
+      <div class="panel" style="padding: 20px 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+          <span style="font-size: 14px; font-weight: 700;">Signal components</span>
+          <span style="font-size: 11.5px; color: #8B95A3;">weighted contribution</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">EMA trend</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 25%; height: 100%; background: #C0392F; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">25</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">RSI</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 50%; height: 100%; background: #B4BDC9; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">50</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">MACD</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 75%; height: 100%; background: #1F8A5B; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">75</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">Supertrend</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 2%; height: 100%; background: #C0392F; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">0</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">ADX</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 50%; height: 100%; background: #B4BDC9; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">50</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">Volume</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 50%; height: 100%; background: #B4BDC9; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">50</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">VWAP</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 75%; height: 100%; background: #1F8A5B; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">75</span>
+          </div>
+
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+
+        <div class="panel" style="padding: 20px 22px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 14px;">Timeframes</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; color: #6B7686;">Weekly</span>
+              <span style="font-size: 11px; font-weight: 700; color: #C0392F; background: #FBECEA; padding: 3px 9px; border-radius: 5px;">BEARISH</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; color: #6B7686;">Daily</span>
+              <span style="font-size: 11px; font-weight: 700; color: #C0392F; background: #FBECEA; padding: 3px 9px; border-radius: 5px;">BEARISH</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; color: #6B7686;">Hourly</span>
+              <span style="font-size: 11px; font-weight: 700; color: #6B7686; background: #EEF1F6; padding: 3px 9px; border-radius: 5px;">NEUTRAL</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #EEF1F6;">
+              <span class="lab">Confluence</span>
+              <span class="num" style="font-size: 12.5px; font-weight: 600;">2 of 3</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 20px 22px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Monte Carlo</div>
+          <div style="font-size: 11.5px; color: #8B95A3; margin-bottom: 14px;">1,000 paths, zero drift</div>
+          <div style="display: flex; flex-direction: column; gap: 11px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12.5px; color: #6B7686;">Profit odds</span>
+              <span class="num" style="font-size: 15px; font-weight: 600;">39.5<span style="font-size: 11px; color: #8B95A3;"> &plusmn;3.0</span></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12.5px; color: #6B7686;">Expected value</span>
+              <span class="num" style="font-size: 15px; font-weight: 600;">+&#8377;3.08</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12.5px; color: #6B7686;">Value at risk</span>
+              <span class="num" style="font-size: 15px; font-weight: 600;">&#8377;29.29</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="font-size: 11.5px; color: #8B95A3; padding: 4px 2px;">
+      Educational use only. Not investment advice.
+    </div>
+
+  </div>
+</div>
+  </div></div>
+</section>
+<div class="closing">
+  <h2>Picking one</h2>
+  <p>Tell me A, B or C and I'll build it across every tab — Signal Terminal, Technical, Backtest, Scanner, Sectors, Watchlist, Research and Alerts — replacing the emoji section markers, the gradient headings and the neon glows throughout.</p>
+  <p>Mixing is fine too, and probably sensible: <strong>A's data rows inside C's panels</strong> is a real combination, and B's evidence table would drop into either. Say so and I'll take the parts you want.</p>
+  <p>Worth knowing before you choose: whichever you pick, the theme toggle in the sidebar stays, so this becomes the dark treatment and I'll build a matching light one. Streamlit's own widgets — selectboxes, sliders, the file uploader — can be restyled but not completely reshaped, so those keep roughly their current geometry in all three.</p>
+</div>
+
+<footer>
+  Screens rendered at 1040px, scroll horizontally on narrow displays.<br>
+  Data is live output from the running app, 22 Aug 2026 — not mock values.<br>
+  Type: IBM Plex Sans/Mono (A) · Source Serif 4 + IBM Plex (B) · Manrope + JetBrains Mono (C).
+</footer>
+</div>

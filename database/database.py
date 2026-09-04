@@ -6,7 +6,11 @@ SQLite database layer for watchlist management and signal history.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
+import os
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +19,58 @@ from typing import Optional
 from config import DB_PATH
 
 logger = logging.getLogger(__name__)
+
+# ── Password hashing ──────────────────────────────────────────────────────────
+# PBKDF2-HMAC-SHA256 from the standard library. Not as good as Argon2 or
+# bcrypt, but it needs no extra dependency and is a very long way from the
+# previous scheme, which was: no password at all.
+_PBKDF2_ITERATIONS = 260_000
+_SALT_BYTES = 16
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_PHONE_RE = re.compile(r"^\+?[0-9][0-9\s\-]{7,17}[0-9]$")
+
+MIN_PASSWORD_LENGTH = 8
+
+
+def hash_password(password: str) -> str:
+    """Return a salted PBKDF2 hash, encoded as 'pbkdf2_sha256$iters$salt$hash'."""
+    salt = os.urandom(_SALT_BYTES)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS
+    )
+    return f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: Optional[str]) -> bool:
+    """Constant-time check of a password against a stored hash."""
+    if not stored:
+        return False
+    try:
+        algorithm, iterations, salt_hex, digest_hex = stored.split("$")
+        if algorithm != "pbkdf2_sha256":
+            return False
+        expected = bytes.fromhex(digest_hex)
+        actual = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt_hex),
+            int(iterations),
+        )
+        return hmac.compare_digest(expected, actual)
+    except (ValueError, AttributeError):
+        logger.warning("Malformed password hash encountered.")
+        return False
+
+
+def validate_email(email: str) -> bool:
+    """True when the string is plausibly an email address."""
+    return bool(_EMAIL_RE.match((email or "").strip()))
+
+
+def validate_phone(phone: str) -> bool:
+    """True when the string is plausibly a phone number."""
+    return bool(_PHONE_RE.match((phone or "").strip()))
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -32,11 +88,13 @@ def initialise_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS watchlist (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                symbol      TEXT NOT NULL UNIQUE,
+                user_id     INTEGER NOT NULL DEFAULT 0,
+                symbol      TEXT NOT NULL,
                 name        TEXT,
                 exchange    TEXT DEFAULT 'NSE',
                 added_at    TEXT DEFAULT (datetime('now')),
-                notes       TEXT
+                notes       TEXT,
+                UNIQUE (user_id, symbol)
             );
 
             CREATE TABLE IF NOT EXISTS signal_history (
@@ -68,12 +126,13 @@ def initialise_db() -> None:
             );
 
             CREATE TABLE IF NOT EXISTS users (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                name        TEXT NOT NULL,
-                phone       TEXT NOT NULL,
-                email       TEXT NOT NULL UNIQUE,
-                created_at  TEXT DEFAULT (datetime('now')),
-                last_login  TEXT DEFAULT (datetime('now'))
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                name          TEXT NOT NULL,
+                phone         TEXT NOT NULL,
+                email         TEXT NOT NULL UNIQUE,
+                password_hash TEXT,
+                created_at    TEXT DEFAULT (datetime('now')),
+                last_login    TEXT DEFAULT (datetime('now'))
             );
 
             CREATE INDEX IF NOT EXISTS idx_signal_symbol
@@ -99,19 +158,35 @@ def initialise_db() -> None:
         if "source" not in existing_cols:
             conn.execute("ALTER TABLE signal_history ADD COLUMN source TEXT DEFAULT 'Signal Terminal'")
 
+        user_cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if user_cols and "password_hash" not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+
+        wl_cols = [r["name"] for r in conn.execute("PRAGMA table_info(watchlist)").fetchall()]
+        if wl_cols and "user_id" not in wl_cols:
+            # Pre-existing rows belonged to nobody in particular; park them on
+            # user_id 0 so they remain visible but stop leaking between accounts.
+            conn.execute("ALTER TABLE watchlist ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0")
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist (user_id, symbol)"
+        )
+
     logger.info("Database initialised at %s", DB_PATH)
 
 
 
 # ── Watchlist ──────────────────────────────────────────────────────────────────
 
-def add_to_watchlist(symbol: str, name: str = "", exchange: str = "NSE") -> bool:
-    """Add a stock to the watchlist. Returns True on success."""
+def add_to_watchlist(
+    symbol: str, name: str = "", exchange: str = "NSE", user_id: int = 0
+) -> bool:
+    """Add a stock to a user's watchlist. Returns True on success."""
     try:
         with _get_conn() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO watchlist (symbol, name, exchange) VALUES (?,?,?)",
-                (symbol.upper(), name, exchange),
+                "INSERT OR IGNORE INTO watchlist (user_id, symbol, name, exchange) VALUES (?,?,?,?)",
+                (int(user_id), symbol.upper(), name, exchange),
             )
         return True
     except Exception as exc:  # noqa: BLE001
@@ -119,23 +194,28 @@ def add_to_watchlist(symbol: str, name: str = "", exchange: str = "NSE") -> bool
         return False
 
 
-def remove_from_watchlist(symbol: str) -> bool:
-    """Remove a stock from the watchlist."""
+def remove_from_watchlist(symbol: str, user_id: int = 0) -> bool:
+    """Remove a stock from a user's watchlist."""
     try:
         with _get_conn() as conn:
-            conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol.upper(),))
+            conn.execute(
+                "DELETE FROM watchlist WHERE symbol = ? AND user_id = ?",
+                (symbol.upper(), int(user_id)),
+            )
         return True
     except Exception as exc:  # noqa: BLE001
         logger.error("remove_from_watchlist error: %s", exc)
         return False
 
 
-def get_watchlist() -> list[dict]:
-    """Return all watchlist entries as a list of dicts."""
+def get_watchlist(user_id: int = 0) -> list[dict]:
+    """Return one user's watchlist entries as a list of dicts."""
     try:
         with _get_conn() as conn:
             rows = conn.execute(
-                "SELECT symbol, name, exchange, added_at FROM watchlist ORDER BY added_at DESC"
+                "SELECT symbol, name, exchange, added_at FROM watchlist "
+                "WHERE user_id = ? ORDER BY added_at DESC",
+                (int(user_id),),
             ).fetchall()
         return [dict(r) for r in rows]
     except Exception as exc:  # noqa: BLE001
@@ -143,11 +223,12 @@ def get_watchlist() -> list[dict]:
         return []
 
 
-def is_in_watchlist(symbol: str) -> bool:
-    """Check if a symbol is in the watchlist."""
+def is_in_watchlist(symbol: str, user_id: int = 0) -> bool:
+    """Check if a symbol is in a user's watchlist."""
     with _get_conn() as conn:
         row = conn.execute(
-            "SELECT 1 FROM watchlist WHERE symbol = ?", (symbol.upper(),)
+            "SELECT 1 FROM watchlist WHERE symbol = ? AND user_id = ?",
+            (symbol.upper(), int(user_id)),
         ).fetchone()
     return row is not None
 
@@ -316,95 +397,129 @@ def get_eod_summary(date_str: Optional[str] = None) -> dict:
 
 # ── User Management ────────────────────────────────────────────────────────────
 
+def _public_user(row: sqlite3.Row | dict) -> dict:
+    """Strip the password hash before a record leaves this module."""
+    data = dict(row)
+    data.pop("password_hash", None)
+    return data
+
+
 def get_user_by_email(email: str) -> Optional[dict]:
-    """Retrieve user record by email address."""
+    """
+    Retrieve a user record by email, without the password hash.
+
+    Internal only. Never expose this to an unauthenticated caller: it is a
+    user-enumeration primitive.
+    """
     try:
         with _get_conn() as conn:
             row = conn.execute(
                 "SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),)
             ).fetchone()
-            return dict(row) if row else None
+            return _public_user(row) if row else None
     except Exception as exc:  # noqa: BLE001
         logger.error("get_user_by_email error: %s", exc)
         return None
 
 
-def get_user_by_phone(phone: str) -> Optional[dict]:
-    """Retrieve user record by phone number."""
+def register_user(name: str, phone: str, email: str, password: str) -> tuple[bool, str, Optional[dict]]:
+    """
+    Create a new account.
+
+    Returns:
+        (ok, message, user_record). ``user_record`` never contains the hash.
+    """
+    clean_name = (name or "").strip()
+    clean_phone = (phone or "").strip()
+    clean_email = (email or "").strip().lower()
+
+    if not clean_name:
+        return False, "Enter your full name.", None
+    if not validate_phone(clean_phone):
+        return False, "Enter a valid phone number, e.g. +91 9876543210.", None
+    if not validate_email(clean_email):
+        return False, "Enter a valid email address.", None
+    if len(password or "") < MIN_PASSWORD_LENGTH:
+        return False, f"Password must be at least {MIN_PASSWORD_LENGTH} characters.", None
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with _get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO users (name, phone, email, password_hash, created_at, last_login)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (clean_name, clean_phone, clean_email, hash_password(password), now_str, now_str),
+            )
+    except sqlite3.IntegrityError:
+        return False, "An account with that email already exists. Sign in instead.", None
+    except Exception as exc:  # noqa: BLE001
+        logger.error("register_user error: %s", exc)
+        return False, "Could not create the account. Try again.", None
+
+    return True, "Account created.", get_user_by_email(clean_email)
+
+
+def authenticate_user(email: str, password: str) -> tuple[bool, str, Optional[dict]]:
+    """
+    Verify an email/password pair.
+
+    The failure message is deliberately identical for "no such user" and "wrong
+    password" so this cannot be used to discover which emails are registered.
+
+    Returns:
+        (ok, message, user_record).
+    """
+    clean_email = (email or "").strip().lower()
+    generic_failure = "Email or password is incorrect."
+
+    if not clean_email or not password:
+        return False, generic_failure, None
+
     try:
         with _get_conn() as conn:
             row = conn.execute(
-                "SELECT * FROM users WHERE phone = ?", (phone.strip(),)
+                "SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (clean_email,)
             ).fetchone()
-            return dict(row) if row else None
     except Exception as exc:  # noqa: BLE001
-        logger.error("get_user_by_phone error: %s", exc)
-        return None
+        logger.error("authenticate_user error: %s", exc)
+        return False, "Sign-in is temporarily unavailable.", None
 
+    if row is None:
+        # Spend comparable time on a dummy hash so timing doesn't leak
+        # whether the address exists.
+        verify_password(password, hash_password("placeholder"))
+        return False, generic_failure, None
 
-def create_or_update_user(name: str, phone: str, email: str) -> dict:
-    """
-    Create a new user or update existing user login time and details.
+    stored_hash = dict(row).get("password_hash")
+    if not stored_hash:
+        return (
+            False,
+            "This account predates password sign-in. Please register again with a password.",
+            None,
+        )
 
-    Args:
-        name: Full Name
-        phone: Phone Number
-        email: Email Address
+    if not verify_password(password, stored_hash):
+        return False, generic_failure, None
 
-    Returns:
-        User record dictionary.
-    """
-    clean_email = email.strip().lower()
-    clean_name = name.strip()
-    clean_phone = phone.strip()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    existing = get_user_by_email(clean_email)
     try:
         with _get_conn() as conn:
-            if existing:
-                conn.execute(
-                    """
-                    UPDATE users 
-                    SET name = ?, phone = ?, last_login = ? 
-                    WHERE LOWER(email) = LOWER(?)
-                    """,
-                    (clean_name, clean_phone, now_str, clean_email),
-                )
-            else:
-                conn.execute(
-                    """
-                    INSERT INTO users (name, phone, email, created_at, last_login)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (clean_name, clean_phone, clean_email, now_str, now_str),
-                )
-        return get_user_by_email(clean_email) or {
-            "name": clean_name,
-            "phone": clean_phone,
-            "email": clean_email,
-            "created_at": now_str,
-            "last_login": now_str,
-        }
+            conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (now_str, row["id"]))
     except Exception as exc:  # noqa: BLE001
-        logger.error("create_or_update_user error: %s", exc)
-        return {
-            "name": clean_name,
-            "phone": clean_phone,
-            "email": clean_email,
-            "created_at": now_str,
-            "last_login": now_str,
-        }
+        logger.warning("Could not update last_login: %s", exc)
+
+    return True, "Signed in.", _public_user(row)
 
 
-def get_all_users() -> list[dict]:
-    """Retrieve all registered users."""
+def count_users() -> int:
+    """Number of registered accounts. Safe to show; reveals no identities."""
     try:
         with _get_conn() as conn:
-            rows = conn.execute("SELECT * FROM users ORDER BY last_login DESC").fetchall()
-            return [dict(r) for r in rows]
+            return int(conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"])
     except Exception as exc:  # noqa: BLE001
-        logger.error("get_all_users error: %s", exc)
-        return []
+        logger.error("count_users error: %s", exc)
+        return 0
 
 

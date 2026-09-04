@@ -15,6 +15,55 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
+# Grounding guard
+# ─────────────────────────────────────────────
+# These prompts ask for figures — five-year P&L tables, DCF outputs, ROCE
+# trends — from a model that has no retrieval, no filings and no tool access.
+# Instructing it to "use only verifiable public information" does not give it
+# those documents; it will produce well-formatted, plausible, wrong numbers.
+#
+# Until a real data source is wired in (screener.in, an NSE/BSE filings feed,
+# or a financials API passed into the prompt as context), the mitigation is to
+# force the model to mark every figure it cannot verify and to forbid silent
+# invention. Prompts flagged in NUMERIC_PROMPTS below are the ones that ask
+# for hard numbers and carry the strongest warning in the UI.
+NUMERIC_PROMPTS = {"P2", "P4", "P6", "P13"}
+
+GROUNDING_PREFIX = """CRITICAL INSTRUCTION — read before answering.
+
+You have NO access to filings, databases, or the internet in this session. You
+cannot look anything up. Therefore:
+
+1. Do NOT state any specific financial figure (revenue, EBITDA, PAT, margins,
+   ratios, share counts, prices, dates) as fact. If you do not have a figure
+   you are certain of, write "[not available — verify against filings]".
+2. Never invent a number to fill a table cell. An explicitly empty cell is
+   correct; a plausible fabricated one is not.
+3. Where you give an approximate or remembered figure, prefix it with
+   "APPROX (unverified):" and state roughly when your knowledge is from.
+4. Prefer qualitative analysis — business model, competitive structure, risk
+   taxonomy, what to watch — which you can do well, over quantitative claims,
+   which you cannot verify here.
+5. Open your response with one line naming which parts are verifiable and
+   which are not.
+
+Now answer the following, under those constraints:
+
+"""
+
+RESEARCH_DISCLAIMER = (
+    "Model-generated analysis. The model has no access to filings or market "
+    "data in this session and cannot verify any figure it produces. Treat all "
+    "numbers as unverified and check them against the company's filings on "
+    "BSE/NSE before relying on them."
+)
+
+
+def build_grounded_prompt(template: str, **kwargs) -> str:
+    """Render a prompt template with the anti-fabrication preamble attached."""
+    return GROUNDING_PREFIX + template.format(**kwargs)
+
+# ─────────────────────────────────────────────
 # 13 Institutional Equity Research Prompts
 # ─────────────────────────────────────────────
 INSTITUTIONAL_PROMPTS: Dict[str, Dict[str, str]] = {
@@ -153,10 +202,34 @@ Compare: Market Cap, P/E, P/B, Revenue Growth (3Yr), EBITDA Margin, ROE, D/E Rat
 }
 
 
-def call_gemini_api(prompt_text: str, api_key: str) -> str:
-    """Call Google Gemini API via REST without external SDK dependencies."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
+def call_gemini_api(
+    prompt_text: str,
+    api_key: str,
+    model: str = "",
+) -> str:
+    """
+    Call Google Gemini API via REST without external SDK dependencies.
+
+    The model id comes from config (GEMINI_MODEL). gemini-1.5-flash, which
+    this used to hardcode, is a legacy model that is no longer available to
+    new projects and will start returning 404.
+
+    The key goes in a header rather than the query string so it does not end
+    up in proxy or server logs.
+    """
+    if not model:
+        try:
+            from config import GEMINI_MODEL
+
+            model = GEMINI_MODEL
+        except ImportError:  # pragma: no cover
+            model = "gemini-2.0-flash"
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    }
     payload = {
         "contents": [{
             "parts": [{"text": prompt_text}]
@@ -168,7 +241,7 @@ def call_gemini_api(prompt_text: str, api_key: str) -> str:
     }
     data_bytes = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data_bytes, headers=headers)
-    
+
     try:
         with urllib.request.urlopen(req, timeout=40) as resp:
             result = json.loads(resp.read().decode("utf-8"))
@@ -188,7 +261,17 @@ def call_openai_api(prompt_text: str, api_key: str, base_url: str = "https://api
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "You are a senior Indian equity research analyst."},
+            {
+                "role": "system",
+                "content": (
+                    "You are a senior Indian equity research analyst. You have no "
+                    "access to filings, databases or the internet in this session. "
+                    "Never state a financial figure as fact unless you are certain "
+                    "of it; mark anything unverifiable as "
+                    "'[not available — verify against filings]'. Do not invent "
+                    "numbers to complete a table."
+                ),
+            },
             {"role": "user", "content": prompt_text}
         ],
         "max_tokens": 2000,

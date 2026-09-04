@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Callable, Optional
 
 import pandas as pd
 import yfinance as yf
@@ -22,14 +23,52 @@ logger = logging.getLogger(__name__)
 _cache = DataCache()
 
 
+class SymbolNotFoundError(ValueError):
+    """
+    The ticker does not resolve on Yahoo Finance.
+
+    Distinct from a transient network error: retrying will not help, so
+    fetch_ohlcv fails fast instead of sleeping through its backoff schedule.
+    """
+
+
+# Daily and weekly bars change once per session — refetching them every five
+# minutes is pure waste. Intraday intervals keep the short TTL.
+_INTERVAL_TTL_SECONDS: dict[str, int] = {
+    "1mo": 86_400,
+    "1wk": 43_200,
+    "1d": 21_600,   # 6 hours
+    "1h": 900,
+    "30m": 600,
+    "15m": 300,
+    "5m": 180,
+    "1m": 60,
+}
+
+
+def cache_ttl_for_interval(interval: str) -> int:
+    """Return an appropriate cache TTL in seconds for a bar interval."""
+    return _INTERVAL_TTL_SECONDS.get(interval, 300)
+
+
 SYMBOL_ALIASES: dict[str, str] = {
     "HERO": "HEROMOTOCO.NS",
     "HERO.NS": "HEROMOTOCO.NS",
     "HERO.BO": "HEROMOTOCO.BO",
     "HEROMOTO": "HEROMOTOCO.NS",
     "HEROMOTOCORP": "HEROMOTOCO.NS",
-    "TATAMOTOR": "TATAMOTORS.NS",
-    "TATAMOTOR.NS": "TATAMOTORS.NS",
+    # Tata Motors demerged; the listed passenger-vehicle entity is TMPV.
+    "TATAMOTOR": "TMPV.NS",
+    "TATAMOTOR.NS": "TMPV.NS",
+    "TATAMOTORS": "TMPV.NS",
+    "TATAMOTORS.NS": "TMPV.NS",
+    # Zomato renamed to Eternal Ltd.
+    "ZOMATO": "ETERNAL.NS",
+    "ZOMATO.NS": "ETERNAL.NS",
+    # Correct NSE symbol for Indian Hotels is INDHOTEL, not INDIHOTEL.
+    "INDIHOTEL": "INDHOTEL.NS",
+    "INDIHOTEL.NS": "INDHOTEL.NS",
+    "INDIANHOTELS": "INDHOTEL.NS",
     "BAJAJAUTO": "BAJAJ-AUTO.NS",
     "BAJAJAUTO.NS": "BAJAJ-AUTO.NS",
     "MM": "M&M.NS",
@@ -151,6 +190,7 @@ def fetch_ohlcv(
 
     last_exc: Optional[Exception] = None
     for attempt in range(1, retries + 1):
+        is_last_attempt = attempt == retries
         try:
             logger.info(
                 "Fetching %s | interval=%s | attempt=%d", symbol, interval, attempt
@@ -172,7 +212,10 @@ def fetch_ohlcv(
                 )
 
             if df.empty:
-                raise ValueError(
+                # A ticker that returns nothing is not a transient failure —
+                # retrying it three times with backoff just burns ~7 seconds
+                # per bad symbol, which adds up fast in a 90-symbol scan.
+                raise SymbolNotFoundError(
                     f"No data returned for symbol '{symbol}'. "
                     "Please verify the ticker symbol (e.g. HEROMOTOCO for Hero MotoCorp, TATAMOTORS, RELIANCE)."
                 )
@@ -196,14 +239,21 @@ def fetch_ohlcv(
             df.dropna(subset=["Close"], inplace=True)
 
             if df.empty:
-                raise ValueError(f"No valid OHLCV rows for symbol '{symbol}'.")
+                raise SymbolNotFoundError(f"No valid OHLCV rows for symbol '{symbol}'.")
 
-            _cache.set(cache_key, df)
+            _cache.set(cache_key, df, ttl=cache_ttl_for_interval(interval))
             logger.info("Fetched %d rows for %s", len(df), symbol)
             return df
 
+        except SymbolNotFoundError:
+            # Permanent: the symbol does not resolve. Fail immediately.
+            raise
+
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
+            if is_last_attempt:
+                logger.warning("Final attempt failed for %s: %s", symbol, exc)
+                break
             wait = backoff ** attempt
             logger.warning(
                 "Attempt %d failed for %s: %s. Retrying in %.1fs…",
@@ -215,7 +265,7 @@ def fetch_ohlcv(
             time.sleep(wait)
 
     raise ValueError(
-        f"Symbol '{symbol}' was not found on Yahoo Finance after {retries} attempts. "
+        f"Could not fetch '{symbol}' from Yahoo Finance after {retries} attempts. "
         "Please check the ticker symbol (e.g. HEROMOTOCO for Hero MotoCorp)."
     ) from last_exc
 
@@ -225,26 +275,49 @@ def fetch_multiple_stocks(
     symbols: list[str],
     interval: str = "1d",
     period: str = "6mo",
+    max_workers: int = 8,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> dict[str, pd.DataFrame]:
     """
-    Fetch OHLCV data for multiple symbols (used in scanner).
+    Fetch OHLCV data for multiple symbols concurrently (used by the scanner).
+
+    Fetching 90+ symbols one at a time is the single slowest thing the app
+    does. Each fetch is almost entirely network wait, so a modest thread pool
+    cuts a two-minute scan to well under twenty seconds. Workers are capped at
+    8 to stay clear of Yahoo's rate limiting.
 
     Args:
-        symbols: List of Yahoo Finance symbols.
-        interval: Data interval.
-        period: Lookback period.
+        symbols:           List of Yahoo Finance symbols.
+        interval:          Data interval.
+        period:            Lookback period.
+        max_workers:       Concurrent fetches. Raise cautiously — Yahoo throttles.
+        progress_callback: Called as (completed, total, symbol) after each result.
 
     Returns:
-        Dict mapping symbol → DataFrame (may be empty on failure).
+        Dict mapping symbol → DataFrame (empty DataFrame on failure).
     """
     results: dict[str, pd.DataFrame] = {}
-    for sym in symbols:
+    total = len(symbols)
+    if total == 0:
+        return results
+
+    def _fetch_one(sym: str) -> tuple[str, pd.DataFrame]:
         try:
-            results[sym] = fetch_ohlcv(sym, interval=interval, period=period)
+            return sym, fetch_ohlcv(sym, interval=interval, period=period)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Skipping %s: %s", sym, exc)
-            results[sym] = pd.DataFrame()
-    return results
+            return sym, pd.DataFrame()
+
+    with ThreadPoolExecutor(max_workers=min(max_workers, total)) as pool:
+        futures = {pool.submit(_fetch_one, s): s for s in symbols}
+        for done, future in enumerate(as_completed(futures), start=1):
+            sym, df = future.result()
+            results[sym] = df
+            if progress_callback:
+                progress_callback(done, total, sym)
+
+    # Preserve the caller's ordering.
+    return {s: results.get(s, pd.DataFrame()) for s in symbols}
 
 
 def get_company_info(symbol: str) -> dict:

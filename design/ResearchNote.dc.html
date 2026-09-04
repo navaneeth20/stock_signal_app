@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #FBFAF7; }
+    a { color: #8C2F26; } a:hover { color: #6E241D; }
+    .num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    .eyebrow { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: #8A8172; }
+  </style>
+</helmet>
+
+<div style="width: 1040px; background: #FBFAF7; color: #16130E; font-family: 'IBM Plex Sans', system-ui, sans-serif; padding: 0 0 34px;">
+
+  <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 20px 56px 14px; border-bottom: 2px solid #16130E;">
+    <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; font-weight: 700; letter-spacing: -0.01em;">StockSense</span>
+    <div style="display: flex; gap: 26px;">
+      <span class="eyebrow" style="color: #16130E;">Signal</span>
+      <span class="eyebrow">Technical</span>
+      <span class="eyebrow">Backtest</span>
+      <span class="eyebrow">Scanner</span>
+      <span class="eyebrow">Sectors</span>
+    </div>
+    <span class="num" style="font-size: 11px; color: #8A8172;">22 Aug 2026 &nbsp;15:30 IST</span>
+  </div>
+
+  <div style="padding: 34px 56px 0; display: grid; grid-template-columns: 1fr 300px; gap: 56px; align-items: start;">
+
+    <div style="display: flex; flex-direction: column; gap: 0;">
+      <span class="eyebrow" style="margin-bottom: 10px;">Daily signal &middot; Energy &amp; Utilities</span>
+      <h1 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 40px; font-weight: 700; line-height: 1.08; letter-spacing: -0.018em; margin: 0 0 6px; text-wrap: balance;">Reliance Industries</h1>
+      <div class="num" style="font-size: 13px; color: #6E6759; margin-bottom: 22px;">RELIANCE.NS&nbsp; &middot;&nbsp; NSE&nbsp; &middot;&nbsp; &#8377;1,316.00&nbsp; &middot;&nbsp; +0.21% today</div>
+
+      <div style="border-top: 1px solid #DCD6CA; border-bottom: 1px solid #DCD6CA; padding: 20px 0; display: flex; align-items: baseline; gap: 18px;">
+        <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 34px; font-weight: 700; color: #8C2F26; line-height: 1;">Sell</span>
+        <span style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; font-style: italic; color: #6E6759;">conviction 33 of 100</span>
+      </div>
+
+      <p style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.62; margin: 22px 0 0; max-width: 62ch; color: #2B261E;">
+        The twenty-day average has crossed below the fifty and price sits well under its
+        two-hundred-day line, with Supertrend short for seventy-four sessions. Momentum
+        does not confirm: MACD remains above its signal line and price is holding above
+        VWAP, which is what keeps conviction in the low thirties rather than lower.
+      </p>
+      <p style="font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.62; margin: 15px 0 0; max-width: 62ch; color: #2B261E;">
+        Weekly and daily trends agree; the hourly does not. ADX at 10.1 says the market is
+        ranging, so trend signals carry less weight than usual here.
+      </p>
+
+      <div style="margin-top: 30px; border-top: 1px solid #DCD6CA; padding-top: 18px;">
+        <span class="eyebrow">Evidence</span>
+        <div style="margin-top: 12px; display: flex; flex-direction: column;">
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">EMA trend</span>
+            <span style="font-size: 13px; color: #6E6759;">20 below 50; price below 200</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #8C2F26;">bearish</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">Supertrend</span>
+            <span style="font-size: 13px; color: #6E6759;">short, 74 sessions</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #8C2F26;">bearish</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">MACD</span>
+            <span style="font-size: 13px; color: #6E6759;">above signal, histogram flat</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #2F5D3A;">bullish</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #EBE6DC;">
+            <span style="font-size: 13px;">RSI</span>
+            <span style="font-size: 13px; color: #6E6759;">52.2, mid-range</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #6E6759;">neutral</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 132px 1fr 62px; gap: 16px; align-items: baseline; padding: 8px 0;">
+            <span style="font-size: 13px;">Trend strength</span>
+            <span style="font-size: 13px; color: #6E6759;">ADX 10.1, market is ranging</span>
+            <span class="num" style="font-size: 13px; text-align: right; color: #6E6759;">weak</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0; border-left: 1px solid #DCD6CA; padding-left: 28px;">
+
+      <span class="eyebrow">Levels</span>
+      <div style="margin-top: 12px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Entry</span><span class="num" style="font-size: 15px;">1,316.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Stop, above</span><span class="num" style="font-size: 15px; color: #8C2F26;">1,345.29</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Target, below</span><span class="num" style="font-size: 15px; color: #2F5D3A;">1,257.42</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Reward : risk</span><span class="num" style="font-size: 15px;">1 : 2.0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0;">
+          <span style="font-size: 13px; color: #6E6759;">Size, 2% risk</span><span class="num" style="font-size: 15px;">68 shares</span>
+        </div>
+      </div>
+
+      <span class="eyebrow" style="margin-top: 26px;">Performance</span>
+      <div style="margin-top: 12px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">One week</span><span class="num" style="font-size: 13px; color: #2F5D3A;">+0.46%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">Two weeks</span><span class="num" style="font-size: 13px; color: #8C2F26;">&minus;1.41%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #EBE6DC;">
+          <span style="font-size: 13px; color: #6E6759;">One month</span><span class="num" style="font-size: 13px; color: #2F5D3A;">+3.44%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0;">
+          <span style="font-size: 13px; color: #6E6759;">Below 52w high</span><span class="num" style="font-size: 13px;">18.4%</span>
+        </div>
+      </div>
+
+      <span class="eyebrow" style="margin-top: 26px;">Simulation</span>
+      <p class="num" style="margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: #2B261E;">
+        Profit odds&nbsp; 39.5 &plusmn; 3.0<br>
+        Expected&nbsp; +&#8377;3.08<br>
+        Risk 95%&nbsp; &#8377;29.29
+      </p>
+      <p style="margin: 12px 0 0; font-size: 11.5px; line-height: 1.55; color: #8A8172;">
+        1,000 paths, zero drift. Measures volatility, not momentum.
+      </p>
+
+    </div>
+  </div>
+
+  <div style="margin: 34px 56px 0; padding-top: 14px; border-top: 1px solid #DCD6CA; font-size: 11px; color: #8A8172;">
+    Educational use only. Not investment advice. Prices from Yahoo Finance, delayed.
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

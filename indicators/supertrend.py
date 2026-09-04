@@ -34,43 +34,55 @@ def compute_supertrend(
     hl2 = (result["High"] + result["Low"]) / 2
     atr = result["ATR"]
 
-    upper_band = hl2 + multiplier * atr
-    lower_band = hl2 - multiplier * atr
+    # Raw (basic) bands
+    basic_upper = (hl2 + multiplier * atr).to_numpy(dtype=float)
+    basic_lower = (hl2 - multiplier * atr).to_numpy(dtype=float)
+    close_arr = result["Close"].to_numpy(dtype=float)
 
-    supertrend = [np.nan] * len(result)
-    direction = [1] * len(result)
+    n = len(result)
+    final_upper = np.full(n, np.nan)
+    final_lower = np.full(n, np.nan)
+    supertrend = np.full(n, np.nan)
+    direction = np.ones(n, dtype=int)
 
-    for i in range(1, len(result)):
-        close = result["Close"].iloc[i]
+    if n == 0:
+        result["Supertrend"] = supertrend
+        result["Supertrend_Direction"] = direction
+        return result
 
-        # Upper band
-        if upper_band.iloc[i] < upper_band.iloc[i - 1] or result["Close"].iloc[i - 1] > upper_band.iloc[i - 1]:
-            ub = upper_band.iloc[i]
+    final_upper[0] = basic_upper[0]
+    final_lower[0] = basic_lower[0]
+    # Seed the line on the side that matches direction[0] (= 1, uptrend).
+    # Seeding with the upper band while calling the trend bullish puts the
+    # line above price on bar 0 and breaks the invariant that an uptrend line
+    # sits below the highs.
+    supertrend[0] = basic_lower[0]
+
+    for i in range(1, n):
+        # The final bands are *carried forward*: a band only loosens when the
+        # raw band moves in the favourable direction, or when price closes
+        # through the previous FINAL band (not the previous raw band).
+        if basic_upper[i] < final_upper[i - 1] or close_arr[i - 1] > final_upper[i - 1]:
+            final_upper[i] = basic_upper[i]
         else:
-            ub = upper_band.iloc[i - 1]
+            final_upper[i] = final_upper[i - 1]
 
-        # Lower band
-        if lower_band.iloc[i] > lower_band.iloc[i - 1] or result["Close"].iloc[i - 1] < lower_band.iloc[i - 1]:
-            lb = lower_band.iloc[i]
+        if basic_lower[i] > final_lower[i - 1] or close_arr[i - 1] < final_lower[i - 1]:
+            final_lower[i] = basic_lower[i]
         else:
-            lb = lower_band.iloc[i - 1]
+            final_lower[i] = final_lower[i - 1]
 
-        if not np.isnan(supertrend[i - 1]):
-            prev_st = supertrend[i - 1]
-            prev_dir = direction[i - 1]
-        else:
-            prev_st = ub
-            prev_dir = 1
+        prev_dir = direction[i - 1]
+        close = close_arr[i]
 
-        if prev_dir == -1 and close > ub:
-            direction[i] = 1
-            supertrend[i] = lb
-        elif prev_dir == 1 and close < lb:
+        if prev_dir == 1 and close < final_lower[i]:
             direction[i] = -1
-            supertrend[i] = ub
+        elif prev_dir == -1 and close > final_upper[i]:
+            direction[i] = 1
         else:
             direction[i] = prev_dir
-            supertrend[i] = lb if prev_dir == 1 else ub
+
+        supertrend[i] = final_lower[i] if direction[i] == 1 else final_upper[i]
 
     result["Supertrend"] = supertrend
     result["Supertrend_Direction"] = direction

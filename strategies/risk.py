@@ -36,6 +36,7 @@ class RiskMetrics:
     capital_allocation: float  # ₹ amount to invest
     risk_amount: float         # ₹ risk per trade
     stop_pct: float            # Stop distance as % of entry
+    direction: int = 1         # +1 = long (stop below entry), -1 = short
 
 
 def calculate_risk(
@@ -62,17 +63,20 @@ def calculate_risk(
     """
     last = df.iloc[-1]
     entry = float(last["Close"])
-    atr = float(last.get("ATR", entry * 0.02))
 
+    raw_atr = last.get("ATR", entry * 0.02)
+    atr = float(raw_atr) if (pd.notna(raw_atr) and float(raw_atr) > 0) else entry * 0.02
+
+    # "Hold" defaults to the long side so the panel still shows usable levels.
     is_long = signal in ("Strong Buy", "Buy", "Hold")
     atr_stop = atr * atr_multiplier
 
     if is_long:
-        stop_loss = entry - atr_stop
+        stop_loss = max(0.01, entry - atr_stop)
         take_profit = entry + atr_stop * rr_ratio
     else:
         stop_loss = entry + atr_stop
-        take_profit = entry - atr_stop * rr_ratio
+        take_profit = max(0.01, entry - atr_stop * rr_ratio)
 
     stop_distance = abs(entry - stop_loss)
     stop_pct = stop_distance / entry
@@ -93,4 +97,5 @@ def calculate_risk(
         capital_allocation=round(capital_allocation, 2),
         risk_amount=round(risk_amount, 2),
         stop_pct=round(stop_pct * 100, 2),
+        direction=1 if is_long else -1,
     )

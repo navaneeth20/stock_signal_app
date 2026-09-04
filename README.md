@@ -18,18 +18,38 @@ license: mit
 
 ## 🚀 Features
 
-- Live NSE/BSE data via Yahoo Finance with caching
+- NSE/BSE price data via Yahoo Finance, with a two-level cache
 - 8+ Technical Indicators: EMA, RSI, MACD, Supertrend, ADX, ATR, Bollinger Bands, VWAP
 - Multi-confirmation Signal Engine (Strong Buy → Strong Sell)
 - Weighted Confidence Scoring (0–100%)
 - AI-generated Trade Explanation (OpenAI / rule-based fallback)
 - Interactive Plotly Candlestick Charts
 - Risk Management: Entry / SL / TP / RRR / Position Sizing
-- Vectorised Backtesting (CAGR, Sharpe, Sortino, Drawdown, Win Rate)
-- Market Scanner (NIFTY 50, Midcap)
-- Watchlist with SQLite persistence
+- Backtesting with a buy-and-hold benchmark (CAGR, Sharpe, Sortino, Drawdown, Win Rate)
+- Monte Carlo probability of profit, for long and short setups
+- Market Scanner (NIFTY 50, Midcap, Smallcap, sector groups) with concurrent fetching
+- Per-user Watchlist with SQLite persistence and password sign-in
 - Telegram & Email Alerts
 - Premium Dark Mode UI
+
+### Where the data comes from
+
+Everything priced in this app comes from **Yahoo Finance** (`yfinance`). There
+is no direct NSE or BSE feed — "NSE" in the UI refers to the exchange the
+`.NS` tickers trade on, not to a data source.
+
+That matters for one thing in particular: **the app does not have FII, DII or
+mutual-fund shareholding data**, because Yahoo does not carry it for Indian
+listings. What the Signal Terminal shows instead is an *accumulation
+footprint* derived from price and volume (up-day volume share, OBV slope,
+close location value), clearly labelled as a proxy. Real institutional
+holdings come from BSE/NSE quarterly shareholding filings and AMFI monthly
+disclosures; wiring those in is on the roadmap.
+
+Likewise, the Institutional Research tab sends prompts to an LLM that has **no
+retrieval and no access to filings**. It is useful for qualitative framing —
+business model, risk taxonomy, bull/bear cases — and unreliable for any
+specific number. Every figure it produces is marked unverified.
 
 ---
 
@@ -58,16 +78,24 @@ stock_signal_app/
 │   ├── scoring.py              # Weighted confidence scoring
 │   └── risk.py                 # ATR stops + position sizing
 ├── backtesting/
-│   └── backtest.py             # Vectorised backtester
+│   └── backtest.py             # Event-driven backtester + benchmark
 ├── charts/
 │   └── candlestick.py          # Plotly chart builder
 ├── alerts/
 │   ├── telegram.py             # Telegram Bot alerts
 │   └── email.py                # SMTP email alerts
 ├── database/
-│   └── database.py             # SQLite watchlist + signal history
+│   └── database.py             # SQLite users, watchlist, signal history
+├── reports/
+│   └── institutional_llm.py    # LLM research prompts + grounding guard
+├── tests/
+│   ├── test_indicators.py
+│   ├── test_signals.py
+│   ├── test_auth.py
+│   └── test_data_integrity.py
 └── utils/
-    └── helpers.py              # Formatting + date utilities
+    ├── helpers.py              # Formatting + date utilities
+    └── quant_risk.py           # Monte Carlo / VaR
 ```
 
 ---
@@ -126,9 +154,63 @@ Open http://localhost:8501
 
 ## Risk Management
 
-- Stop Loss: 1.5x ATR below entry
-- Take Profit: 3.0x ATR above entry
+- Stop Loss: 1.5x ATR (below entry for longs, above for shorts)
+- Take Profit: 2:1 reward-to-risk against that stop
 - Position Size: Fixed fractional (2% risk per trade by default)
+
+All levels come from `strategies/risk.py`, which is the single source of truth
+for entry, stop and target.
+
+---
+
+## How the Backtest Works
+
+Worth reading before trusting a number from it:
+
+- It runs the **same** scoring path as the live signal engine — every
+  indicator at its configured weight.
+- A signal derived from bar *i*'s close is filled at bar *i+1*'s **open**.
+- The ATR stop and target are applied, checked intrabar against High/Low. When
+  one bar spans both levels, the stop is assumed to fill first.
+- Costs are 0.2% per side plus 0.05% slippage — roughly brokerage + STT +
+  exchange charges + GST + stamp duty for NSE delivery.
+- **Buy-and-hold over the identical window is reported alongside.** A 24% CAGR
+  means nothing if the stock itself did 31%.
+
+---
+
+## Running the Tests
+
+```bash
+pytest tests/ -v
+```
+
+### Checking the ticker list
+
+Indian symbols change — companies rename (Zomato → Eternal), demerge
+(Tata Motors → TMPV), and typos hide for a long time because a dead symbol only
+produces a log warning and silently vanishes from every scan:
+
+```bash
+python tools/validate_tickers.py
+```
+
+Exits non-zero if anything in `config.py` no longer resolves. When replacing a
+symbol, confirm it is genuinely the same company — one that merely resolves is
+not good enough (`LTTS` is L&T Technology Services, not LTIMindtree).
+
+### Pinned dependencies
+
+`requirements.txt` carries tested bounds; `requirements.lock.txt` is an exact
+freeze of a known-good environment:
+
+```bash
+pip install -r requirements.lock.txt
+```
+
+Streamlit is capped below 2.0 on purpose — the CSS in `app.py` targets
+`data-testid` attributes (`stSidebar`, `stRadio`, `stFormSubmitButton`,
+`stButton`) that Streamlit renames between releases.
 
 ---
 
@@ -141,7 +223,10 @@ Open http://localhost:8501
 - Portfolio optimisation
 - News sentiment analysis
 - Options chain analysis
-- FII/DII flow data
+- **Real FII/DII flow data** — BSE/NSE quarterly shareholding filings and AMFI
+  monthly disclosures, to replace the current price/volume proxy
+- **Grounded research** — feed real financials into the LLM prompts instead of
+  asking the model to recall them
 - Sector rotation tracker
 - Candlestick pattern detection
 - Multi-timeframe confirmation

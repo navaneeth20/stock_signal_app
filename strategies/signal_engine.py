@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -40,6 +40,7 @@ from indicators.macd import compute_macd, macd_signal
 from indicators.rsi import compute_rsi, rsi_signal
 from indicators.supertrend import compute_supertrend, supertrend_signal
 from indicators.vwap import compute_vwap, vwap_signal
+from strategies.risk import calculate_risk
 from strategies.scoring import compute_score, label_from_score
 
 logger = logging.getLogger(__name__)
@@ -64,12 +65,56 @@ class SignalResult:
     mtf_result: Optional[Any] = None
     news_result: Optional[Any] = None
     mc_result: Optional[Any] = None
+    inst_result: Optional[Any] = None
     pct_1w: float = 0.0
     pct_2w: float = 0.0
     pct_1m: float = 0.0
     dist_52w_high: float = 0.0
     is_extended: bool = False
     extended_warning: str = ""
+
+
+def apply_confidence_modifier(
+    result: "SignalResult",
+    delta: float,
+    label: str,
+    detail: str = "",
+) -> "SignalResult":
+    """
+    Adjust a signal's confidence and re-derive its label in one step.
+
+    The label is a pure function of the confidence, so anything that moves the
+    confidence after ``generate_signal()`` must re-run ``label_from_score()``.
+    Skipping that is how the UI ends up showing "Buy — 82%" when the Strong Buy
+    threshold is 75. Always route post-hoc adjustments through here.
+
+    Args:
+        result: The SignalResult to adjust in place.
+        delta:  Confidence points to add (may be negative). No-op when 0.
+        label:  Short name of the adjustment, e.g. "Multi-timeframe alignment".
+        detail: Optional extra context appended to the reason line.
+
+    Returns:
+        The same SignalResult, mutated.
+    """
+    if not delta:
+        return result
+
+    previous_label = result.signal
+    result.confidence = max(0.0, min(100.0, result.confidence + delta))
+    result.signal = label_from_score(result.confidence)
+
+    suffix = f" {detail}" if detail else ""
+    if result.signal != previous_label:
+        result.reasons.append(
+            f"{label}: confidence {delta:+.1f} → {result.confidence:.1f}%. "
+            f"Signal revised from {previous_label} to {result.signal}.{suffix}"
+        )
+    else:
+        result.reasons.append(
+            f"{label}: confidence {delta:+.1f} → {result.confidence:.1f}%.{suffix}"
+        )
+    return result
 
 
 def compute_price_performance(df: pd.DataFrame) -> dict:
@@ -177,19 +222,66 @@ def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def volume_signal(df: pd.DataFrame) -> dict:
-    """Simple volume confirmation signal."""
+    """
+    Volume confirmation signal, signed by the bar's own direction.
+
+    Volume has no direction of its own — it confirms whatever the candle did.
+    Heavy volume on a down bar is distribution (bearish), not "strong buying
+    interest". The magnitude comes from the volume ratio; the sign comes from
+    the close-vs-open move.
+    """
     if "Volume_Ratio" not in df.columns:
         return {"signal": 0, "score": 0, "reasons": ["Volume SMA not available"]}
 
-    ratio = df["Volume_Ratio"].iloc[-1]
+    last = df.iloc[-1]
+    ratio = last["Volume_Ratio"]
+    if pd.isna(ratio):
+        return {"signal": 0, "score": 0, "reasons": ["Volume SMA not available"]}
+
+    ratio = float(ratio)
+    close = float(last["Close"])
+    open_px = float(last["Open"]) if "Open" in df.columns and pd.notna(last["Open"]) else close
+
+    # Direction of the bar the volume belongs to.
+    if close > open_px:
+        direction, word = 1, "accumulation"
+    elif close < open_px:
+        direction, word = -1, "distribution"
+    else:
+        direction, word = 0, "indecision"
+
     if ratio > 1.5:
-        return {"signal": 1, "score": 1, "reasons": [f"Volume {ratio:.1f}x avg — Strong buying interest"]}
+        magnitude = 2
+        strength = "Heavy"
     elif ratio > 1.2:
-        return {"signal": 1, "score": 1, "reasons": [f"Volume {ratio:.1f}x avg — Above-average activity"]}
+        magnitude = 1
+        strength = "Above-average"
     elif ratio < 0.5:
-        return {"signal": -1, "score": -1, "reasons": [f"Volume {ratio:.1f}x avg — Very low interest"]}
+        # Thin volume conviction-free: fade whatever the bar did.
+        return {
+            "signal": 0,
+            "score": 0,
+            "reasons": [f"Volume {ratio:.1f}x avg — Very low participation, move lacks conviction"],
+        }
     else:
         return {"signal": 0, "score": 0, "reasons": [f"Volume {ratio:.1f}x avg — Normal"]}
+
+    if direction == 0:
+        return {
+            "signal": 0,
+            "score": 0,
+            "reasons": [f"Volume {ratio:.1f}x avg on a flat close — {word}"],
+        }
+
+    score = magnitude * direction
+    move_pct = ((close - open_px) / open_px * 100.0) if open_px else 0.0
+    return {
+        "signal": 1 if score > 0 else -1,
+        "score": score,
+        "reasons": [
+            f"Volume {ratio:.1f}x avg on a {move_pct:+.1f}% bar — {strength} {word}"
+        ],
+    }
 
 
 def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
@@ -206,12 +298,19 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
     if len(df) < 60:
         raise ValueError(f"Insufficient data for {symbol}: need ≥60 bars, got {len(df)}")
 
-    # Individual indicator signals
+    # Individual indicator signals.
+    # ADX runs first so RSI can use it to decide between the momentum reading
+    # (trending market) and the mean-reversion reading (ranging market).
+    adx_s = adx_signal(df)
     ema_s = ema_signal(df)
-    rsi_s = rsi_signal(df, overbought=RSI_OVERBOUGHT, oversold=RSI_OVERSOLD)
+    rsi_s = rsi_signal(
+        df,
+        overbought=RSI_OVERBOUGHT,
+        oversold=RSI_OVERSOLD,
+        adx_value=adx_s.get("adx_value"),
+    )
     macd_s = macd_signal(df)
     st_s = supertrend_signal(df)
-    adx_s = adx_signal(df)
     vol_s = volume_signal(df)
     vwap_s = vwap_signal(df)
 
@@ -248,15 +347,14 @@ def generate_signal(symbol: str, df: pd.DataFrame) -> SignalResult:
         else:
             all_reasons.append(f"⚠️ Confidence adjusted (-12%) due to extended 2-week runup (+{perf['pct_2w']:.1f}% near peak).")
 
-    # Risk levels (based on last ATR)
-    last = df.iloc[-1]
-    entry = float(last["Close"])
-    raw_atr = last.get("ATR", entry * 0.02)
-    atr = float(raw_atr) if (pd.notna(raw_atr) and float(raw_atr) > 0) else entry * 0.02
-    stop_loss = max(0.01, entry - 1.5 * atr)
-    take_profit = entry + 3.0 * atr  # 2:1 RRR at minimum
-    risk_dist = max(entry - stop_loss, 0.01)
-    rr = (take_profit - entry) / risk_dist
+    # Risk levels — single source of truth in strategies/risk.py, which honours
+    # ATR_STOP_MULTIPLIER / TAKE_PROFIT_RR from config and gets the direction
+    # right for short signals (stop above entry, target below).
+    risk = calculate_risk(df, signal_label)
+    entry = risk.entry_price
+    stop_loss = risk.stop_loss
+    take_profit = risk.take_profit
+    rr = risk.risk_reward
 
     signal_age = _compute_signal_age(df)
     horizon = "3–7 Trading Days" if signal_label in ("Strong Buy", "Strong Sell") else "7–15 Trading Days"

@@ -12,7 +12,9 @@ import hashlib
 import logging
 import pickle
 import sqlite3
+import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Optional
 
@@ -20,16 +22,27 @@ logger = logging.getLogger(__name__)
 
 _CACHE_DB_PATH = Path(__file__).parent.parent / "database" / "cache.db"
 _DEFAULT_TTL = 300  # 5 minutes
+_DEFAULT_MAX_MEM_ENTRIES = 256  # L1 bound; each entry is a DataFrame
 
 
 class DataCache:
     """Thread-safe two-level cache for DataFrame objects."""
 
-    def __init__(self, ttl: int = _DEFAULT_TTL, db_path: Path = _CACHE_DB_PATH) -> None:
+    def __init__(
+        self,
+        ttl: int = _DEFAULT_TTL,
+        db_path: Path = _CACHE_DB_PATH,
+        max_memory_entries: int = _DEFAULT_MAX_MEM_ENTRIES,
+    ) -> None:
         self._ttl = ttl
-        self._mem: dict[str, tuple[Any, float]] = {}  # key → (value, expire_at)
+        # OrderedDict so L1 can evict least-recently-used entries. An unbounded
+        # dict of DataFrames grows for the life of the process.
+        self._mem: "OrderedDict[str, tuple[Any, float]]" = OrderedDict()
+        self._max_memory_entries = max_memory_entries
+        self._lock = threading.RLock()
         self._db_path = db_path
         self._init_db()
+        self.clear_expired()
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
@@ -67,11 +80,13 @@ class DataCache:
         now = time.time()
 
         # L1 – memory
-        if hk in self._mem:
-            val, expire = self._mem[hk]
-            if now < expire:
-                return val
-            del self._mem[hk]
+        with self._lock:
+            if hk in self._mem:
+                val, expire = self._mem[hk]
+                if now < expire:
+                    self._mem.move_to_end(hk)  # mark as recently used
+                    return val
+                del self._mem[hk]
 
         # L2 – disk
         try:
@@ -83,7 +98,7 @@ class DataCache:
                 _, expire = row
                 if now < expire:
                     val = pickle.loads(row[0])
-                    self._mem[hk] = (val, expire)  # warm L1
+                    self._remember(hk, val, expire)  # warm L1
                     return val
                 # Expired — purge
                 self._delete(hk)
@@ -103,7 +118,7 @@ class DataCache:
         """
         hk = self._hash_key(key)
         expire = time.time() + (ttl or self._ttl)
-        self._mem[hk] = (value, expire)
+        self._remember(hk, value, expire)
         try:
             blob = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
             with self._get_conn() as conn:
@@ -114,10 +129,19 @@ class DataCache:
         except Exception as exc:  # noqa: BLE001
             logger.debug("Cache write error: %s", exc)
 
+    def _remember(self, hashed_key: str, value: Any, expire: float) -> None:
+        """Store in L1, evicting the least-recently-used entry past the bound."""
+        with self._lock:
+            self._mem[hashed_key] = (value, expire)
+            self._mem.move_to_end(hashed_key)
+            while len(self._mem) > self._max_memory_entries:
+                self._mem.popitem(last=False)
+
     def invalidate(self, key: str) -> None:
         """Remove a specific key from both caches."""
         hk = self._hash_key(key)
-        self._mem.pop(hk, None)
+        with self._lock:
+            self._mem.pop(hk, None)
         self._delete(hk)
 
     def clear_expired(self) -> int:

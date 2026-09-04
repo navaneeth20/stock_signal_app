@@ -76,15 +76,22 @@ def format_volume(vol: float) -> str:
 
 
 def color_for_signal(signal: str) -> str:
-    """Return a hex color string for a signal label."""
-    color_map = {
-        "Strong Buy": "#00e676",
-        "Buy": "#69f0ae",
-        "Hold": "#ffd740",
-        "Sell": "#ff6e40",
-        "Strong Sell": "#f44336",
+    """
+    Return a CSS colour for a signal label.
+
+    Resolves to a custom property rather than a literal hex so the same call
+    site works in both themes — the light and dark stylesheets each bind these
+    variables to their own semantic scale. Falls back to the neutral ink token
+    for an unknown label.
+    """
+    var_map = {
+        "Strong Buy": "var(--sig-strong-buy)",
+        "Buy": "var(--sig-buy)",
+        "Hold": "var(--sig-hold)",
+        "Sell": "var(--sig-sell)",
+        "Strong Sell": "var(--sig-strong-sell)",
     }
-    return color_map.get(signal, "#9e9e9e")
+    return var_map.get(signal, "var(--ink-3)")
 
 
 def truncate(text: str, max_len: int = 60) -> str:

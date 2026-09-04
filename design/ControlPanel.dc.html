@@ -1,0 +1,198 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #F5F7F9; }
+    a { color: #3D4FB8; } a:hover { color: #2F3E96; }
+    .num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    .lab { font-size: 11px; font-weight: 600; color: #6B7686; letter-spacing: 0.01em; }
+    .panel { background: #FFFFFF; border: 1px solid #E4E8ED; border-radius: 10px; }
+  </style>
+</helmet>
+
+<div style="width: 1040px; background: #F5F7F9; color: #10161F; font-family: 'Manrope', system-ui, sans-serif; padding-bottom: 30px;">
+
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 30px; background: #FFFFFF; border-bottom: 1px solid #E4E8ED;">
+    <div style="display: flex; align-items: center; gap: 30px;">
+      <span style="font-size: 15px; font-weight: 800; letter-spacing: -0.02em;">StockSense</span>
+      <div style="display: flex; gap: 4px;">
+        <span style="font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px; background: #EEF1F6; color: #10161F;">Signal</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Technical</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Backtest</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Scanner</span>
+        <span style="font-size: 12.5px; font-weight: 500; padding: 6px 12px; color: #6B7686;">Sectors</span>
+      </div>
+    </div>
+    <span class="num" style="font-size: 11.5px; color: #8B95A3;">NSE 15:30 IST</span>
+  </div>
+
+  <div style="padding: 26px 30px 0; display: flex; flex-direction: column; gap: 16px;">
+
+    <div class="panel" style="padding: 24px 26px; display: grid; grid-template-columns: 1fr 340px; gap: 40px; align-items: center;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">Reliance Industries</span>
+          <span class="num" style="font-size: 11px; font-weight: 500; color: #6B7686; background: #EEF1F6; padding: 3px 8px; border-radius: 5px;">RELIANCE.NS</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <span class="num" style="font-size: 34px; font-weight: 600;">&#8377;1,316.00</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #1F8A5B;">+0.21%</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 2px;">
+          <span style="font-size: 13px; font-weight: 700; color: #FFFFFF; background: #C0392F; padding: 5px 13px; border-radius: 6px; letter-spacing: 0.01em;">SELL</span>
+          <span style="font-size: 12.5px; color: #6B7686;">held 74 sessions &middot; 7&ndash;15 session horizon</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <span class="lab">Confidence</span>
+          <span class="num" style="font-size: 26px; font-weight: 600; color: #C0392F;">33.2%</span>
+        </div>
+        <div style="height: 6px; background: #EEF1F6; border-radius: 3px; overflow: hidden;">
+          <div style="width: 33.2%; height: 100%; background: #C0392F; border-radius: 3px;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span class="num" style="font-size: 10px; color: #A3ACB9;">Strong sell 25</span>
+          <span class="num" style="font-size: 10px; color: #A3ACB9;">Hold 45</span>
+          <span class="num" style="font-size: 10px; color: #A3ACB9;">Buy 55</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Entry</span><span class="num" style="font-size: 18px; font-weight: 600;">1,316.00</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Stop &middot; above</span><span class="num" style="font-size: 18px; font-weight: 600; color: #C0392F;">1,345.29</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Target &middot; below</span><span class="num" style="font-size: 18px; font-weight: 600; color: #1F8A5B;">1,257.42</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Reward : risk</span><span class="num" style="font-size: 18px; font-weight: 600;">1 : 2.0</span>
+      </div>
+      <div class="panel" style="padding: 15px 17px; display: flex; flex-direction: column; gap: 7px;">
+        <span class="lab">Size &middot; 2% risk</span><span class="num" style="font-size: 18px; font-weight: 600;">68 sh</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 12px; align-items: start;">
+
+      <div class="panel" style="padding: 20px 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+          <span style="font-size: 14px; font-weight: 700;">Signal components</span>
+          <span style="font-size: 11.5px; color: #8B95A3;">weighted contribution</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">EMA trend</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 25%; height: 100%; background: #C0392F; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">25</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">RSI</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 50%; height: 100%; background: #B4BDC9; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">50</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">MACD</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 75%; height: 100%; background: #1F8A5B; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">75</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">Supertrend</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 2%; height: 100%; background: #C0392F; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">0</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">ADX</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 50%; height: 100%; background: #B4BDC9; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">50</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">Volume</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 50%; height: 100%; background: #B4BDC9; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">50</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 96px 1fr 40px; gap: 14px; align-items: center;">
+            <span style="font-size: 12.5px; font-weight: 500;">VWAP</span>
+            <div style="height: 6px; background: #EEF1F6; border-radius: 3px;"><div style="width: 75%; height: 100%; background: #1F8A5B; border-radius: 3px;"></div></div>
+            <span class="num" style="font-size: 12px; text-align: right; color: #6B7686;">75</span>
+          </div>
+
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+
+        <div class="panel" style="padding: 20px 22px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 14px;">Timeframes</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; color: #6B7686;">Weekly</span>
+              <span style="font-size: 11px; font-weight: 700; color: #C0392F; background: #FBECEA; padding: 3px 9px; border-radius: 5px;">BEARISH</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; color: #6B7686;">Daily</span>
+              <span style="font-size: 11px; font-weight: 700; color: #C0392F; background: #FBECEA; padding: 3px 9px; border-radius: 5px;">BEARISH</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; color: #6B7686;">Hourly</span>
+              <span style="font-size: 11px; font-weight: 700; color: #6B7686; background: #EEF1F6; padding: 3px 9px; border-radius: 5px;">NEUTRAL</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #EEF1F6;">
+              <span class="lab">Confluence</span>
+              <span class="num" style="font-size: 12.5px; font-weight: 600;">2 of 3</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 20px 22px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Monte Carlo</div>
+          <div style="font-size: 11.5px; color: #8B95A3; margin-bottom: 14px;">1,000 paths, zero drift</div>
+          <div style="display: flex; flex-direction: column; gap: 11px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12.5px; color: #6B7686;">Profit odds</span>
+              <span class="num" style="font-size: 15px; font-weight: 600;">39.5<span style="font-size: 11px; color: #8B95A3;"> &plusmn;3.0</span></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12.5px; color: #6B7686;">Expected value</span>
+              <span class="num" style="font-size: 15px; font-weight: 600;">+&#8377;3.08</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <span style="font-size: 12.5px; color: #6B7686;">Value at risk</span>
+              <span class="num" style="font-size: 15px; font-weight: 600;">&#8377;29.29</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="font-size: 11.5px; color: #8B95A3; padding: 4px 2px;">
+      Educational use only. Not investment advice.
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

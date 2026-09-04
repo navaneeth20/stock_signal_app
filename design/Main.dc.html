@@ -1,0 +1,200 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #0B0D0F; }
+    a { color: #6E9FD4; } a:hover { color: #8FB8E2; }
+    .num { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    .lab { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; color: #6B7480; }
+  </style>
+</helmet>
+
+<div style="width: 1040px; background: #0B0D0F; color: #E8EAED; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
+
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 24px; border-bottom: 1px solid #1E2227;">
+    <div style="display: flex; gap: 22px; align-items: center;">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em;">STOCKSENSE</span>
+      <span class="lab" style="color: #E8EAED;">Signal Terminal</span>
+      <span class="lab">Technical</span>
+      <span class="lab">Backtest</span>
+      <span class="lab">Scanner</span>
+      <span class="lab">Sectors</span>
+    </div>
+    <span class="num" style="font-size: 11px; color: #6B7480;">NSE&nbsp; 15:30:04 IST</span>
+  </div>
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; padding: 26px 24px 20px;">
+    <div style="display: flex; flex-direction: column; gap: 3px;">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.01em;">RELIANCE</div>
+      <div style="font-size: 12px; color: #6B7480;">Reliance Industries&nbsp; ·&nbsp; Energy &amp; Utilities&nbsp; ·&nbsp; Large Cap</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px;">
+      <div class="num" style="font-size: 30px; font-weight: 500;">1,316.00</div>
+      <div class="num" style="font-size: 12px; color: #35B37E;">+2.75&nbsp; +0.21%</div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: stretch; border-top: 1px solid #1E2227; border-bottom: 1px solid #1E2227;">
+    <div style="flex: 0 0 250px; padding: 20px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 8px;">
+      <span class="lab">Signal</span>
+      <div style="font-size: 32px; font-weight: 600; color: #E5484D; letter-spacing: -0.01em; line-height: 1;">SELL</div>
+      <span class="num" style="font-size: 11px; color: #6B7480;">held 74 sessions</span>
+    </div>
+    <div style="flex: 1; padding: 20px 24px; display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span class="lab">Confidence</span>
+        <span class="num" style="font-size: 20px; font-weight: 500; color: #E5484D;">33.2</span>
+      </div>
+      <div style="display: flex; height: 4px; background: #1E2227;">
+        <div style="width: 33.2%; background: #E5484D;"></div>
+      </div>
+      <div class="num" style="display: flex; justify-content: space-between; font-size: 9.5px; color: #4C545E;">
+        <span>0</span><span>25 SELL</span><span>45 HOLD</span><span>55 BUY</span><span>75</span><span>100</span>
+      </div>
+    </div>
+    <div style="flex: 0 0 210px; padding: 20px 24px; border-left: 1px solid #1E2227; display: flex; flex-direction: column; gap: 8px;">
+      <span class="lab">Horizon</span>
+      <div style="font-size: 15px; font-weight: 500;">7&ndash;15 sessions</div>
+      <span class="num" style="font-size: 11px; color: #6B7480;">swing &middot; daily bars</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));">
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Entry</span><span class="num" style="font-size: 17px;">1,316.00</span>
+    </div>
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Stop &mdash; above</span><span class="num" style="font-size: 17px; color: #E5484D;">1,345.29</span>
+    </div>
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Target &mdash; below</span><span class="num" style="font-size: 17px; color: #35B37E;">1,257.42</span>
+    </div>
+    <div style="padding: 16px 24px; border-right: 1px solid #1E2227; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Reward : risk</span><span class="num" style="font-size: 17px;">1 : 2.0</span>
+    </div>
+    <div style="padding: 16px 24px; display: flex; flex-direction: column; gap: 6px;">
+      <span class="lab">Size @ 2% risk</span><span class="num" style="font-size: 17px;">68 sh</span>
+    </div>
+  </div>
+
+  <div style="display: flex; border-top: 1px solid #1E2227;">
+
+    <div style="flex: 1; padding: 20px 24px; border-right: 1px solid #1E2227;">
+      <div class="lab" style="margin-bottom: 14px;">Signal components</div>
+      <div style="display: flex; flex-direction: column; gap: 0;">
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">EMA trend</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 25%; background: #E5484D;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">25</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">RSI</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #6B7480;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">50</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">MACD</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 75%; background: #35B37E;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">75</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">Supertrend</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 2%; background: #E5484D;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">0</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">ADX</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #6B7480;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">50</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px;">Volume</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #6B7480;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">50</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 88px 1fr 46px; gap: 12px; align-items: center; padding: 7px 0;">
+          <span style="font-size: 12px;">VWAP</span>
+          <div style="height: 3px; background: #1E2227; position: relative;"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 75%; background: #35B37E;"></div></div>
+          <span class="num" style="font-size: 12px; text-align: right; color: #9AA3AE;">75</span>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="flex: 0 0 300px; padding: 20px 24px; border-right: 1px solid #1E2227;">
+      <div class="lab" style="margin-bottom: 14px;">Timeframe alignment</div>
+      <div style="display: flex; flex-direction: column; gap: 0;">
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px; color: #9AA3AE;">Weekly</span><span class="num" style="font-size: 12px; color: #E5484D;">BEARISH</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px; color: #9AA3AE;">Daily</span><span class="num" style="font-size: 12px; color: #E5484D;">BEARISH</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #16191D;">
+          <span style="font-size: 12px; color: #9AA3AE;">Hourly</span><span class="num" style="font-size: 12px; color: #6B7480;">NEUTRAL</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 10px 0 0;">
+          <span class="lab">Confluence</span><span class="num" style="font-size: 12px;">2 of 3</span>
+        </div>
+      </div>
+      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #1E2227;">
+        <div class="lab" style="margin-bottom: 10px;">Last bar</div>
+        <div class="num" style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; font-size: 11.5px; color: #9AA3AE;">
+          <span>RSI&nbsp; 52.2</span><span>ADX&nbsp; 10.1</span>
+          <span>EMA20&nbsp; 1311.36</span><span>EMA50&nbsp; 1312.95</span>
+          <span>ATR&nbsp; 19.53</span><span>VWAP&nbsp; 1309.99</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 0 0 244px; padding: 20px 24px;">
+      <div class="lab" style="margin-bottom: 14px;">Monte Carlo &mdash; 1,000 paths</div>
+      <div style="display: flex; flex-direction: column; gap: 13px;">
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span class="lab">Prob. of profit</span>
+          <span class="num" style="font-size: 19px;">39.5<span style="font-size: 11px; color: #6B7480;">&nbsp;&plusmn; 3.0</span></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span class="lab">Expected value</span>
+          <span class="num" style="font-size: 19px;">+3.08</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span class="lab">Value at risk 95%</span>
+          <span class="num" style="font-size: 19px;">29.29</span>
+        </div>
+      </div>
+      <p style="margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: #4C545E;">Zero drift. Measures volatility, not momentum. Paths checked at daily closes.</p>
+    </div>
+
+  </div>
+
+  <div style="padding: 12px 24px; border-top: 1px solid #1E2227; font-size: 10.5px; color: #4C545E;">
+    Educational use only. Not investment advice.
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

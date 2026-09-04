@@ -39,7 +39,11 @@ def compute_bollinger(
 
 def bollinger_signal(df: pd.DataFrame) -> dict:
     """
-    Generate Bollinger Band signal based on price position and band squeeze.
+    Generate a mean-reversion Bollinger Band signal from price position.
+
+    The scale is monotonic: the lower the price sits inside the band, the more
+    bullish the reversion score, and vice versa. (The previous version flipped
+    sign as price recovered upward through the lower band.)
 
     Returns:
         dict with signal, score, reasons.
@@ -51,23 +55,27 @@ def bollinger_signal(df: pd.DataFrame) -> dict:
     row = df.iloc[-1]
     pct = row["BB_Pct"]
     close = row["Close"]
+
+    if pd.isna(pct):
+        return {"signal": 0, "score": 0, "reasons": ["Bollinger Bands not available"]}
+
     score = 0
     reasons: list[str] = []
 
     if pct < 0.05:
-        score = -2
-        reasons.append(f"Price ({close:.2f}) near/below lower BB — Oversold")
-    elif pct < 0.2:
+        score = 2
+        reasons.append(f"Price ({close:.2f}) at/below lower BB — Oversold, reversion up likely")
+    elif pct < 0.20:
         score = 1
-        reasons.append("Price in lower BB zone — potential bounce")
+        reasons.append(f"Price in lower BB zone (BB% {pct:.1%}) — potential bounce")
     elif pct > 0.95:
+        score = -2
+        reasons.append(f"Price ({close:.2f}) at/above upper BB — Overbought, reversion down likely")
+    elif pct > 0.80:
         score = -1
-        reasons.append(f"Price ({close:.2f}) near/above upper BB — Overbought")
-    elif pct > 0.8:
-        score = -1
-        reasons.append("Price in upper BB zone — caution")
+        reasons.append(f"Price in upper BB zone (BB% {pct:.1%}) — caution")
     else:
-        reasons.append(f"Price within BB bands (BB%: {pct:.1%})")
+        reasons.append(f"Price within BB bands (BB% {pct:.1%})")
 
     signal = 1 if score > 0 else (-1 if score < 0 else 0)
     return {"signal": signal, "score": score, "reasons": reasons}

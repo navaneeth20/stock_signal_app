@@ -18,16 +18,40 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Financial Sentiment Dictionary (Domain-specific for Stock Markets)
+#
+# Only words that carry sentiment on their own belong here. Neutral subject
+# nouns — "revenue", "debt", "target", "order" — were removed: they describe
+# what a headline is about, not whether it is good news. Leaving them in made
+# "Company cuts debt by half" read as doubly bearish.
 BULLISH_KEYWORDS = {
-    "growth", "profit", "surge", "gain", "bullish", "record", "jump", "rally",
-    "outperform", "buy", "upbeat", "expansion", "dividend", "revenue", "order",
-    "contract", "upgrade", "target", "strong", "breakout", "acquisition", "high"
+    "growth", "surge", "surges", "gain", "gains", "bullish",
+    "record", "jump", "jumps", "rally", "rallies", "outperform", "upbeat",
+    "expansion", "upgrade", "upgrades", "strong", "strength", "breakout",
+    "beats", "beat", "soars", "soar", "rises", "rise", "wins", "win", "boost",
+    "boosts", "higher", "outperforms", "robust", "recovery", "rebound",
 }
+
+# "profit" belongs with "revenue" and "debt": it names what the headline is
+# about, not whether the news is good. The verb carries the sentiment —
+# "profit rises" is bullish, "profit falls" is bearish. Scoring the noun as
+# bullish made "Profit falls 30%" cancel out to Neutral.
 BEARISH_KEYWORDS = {
-    "fall", "drop", "loss", "plunge", "bearish", "decline", "downgrade", "sell",
-    "warning", "slump", "investigation", "penalty", "lawsuit", "debt", "risk",
-    "slash", "cut", "inflation", "weak", "disappoint", "crash", "low", "concern"
+    "fall", "falls", "drop", "drops", "loss", "losses", "plunge", "plunges",
+    "bearish", "decline", "declines", "downgrade", "downgrades", "warning",
+    "warns", "slump", "slumps", "investigation", "probe", "penalty", "fine",
+    "lawsuit", "fraud", "default", "slash", "slashes", "weak", "weakness",
+    "disappoint", "disappoints", "crash", "concern", "concerns", "misses",
+    "miss", "lower", "sinks", "sink", "tumbles", "tumble", "underperform",
+    "downturn", "layoffs", "resigns", "halt",
 }
+
+# Flipping a term's polarity. "Profit falls" and "no growth" are not bullish.
+NEGATORS = {
+    "no", "not", "never", "without", "fails", "fail", "failed", "lacks",
+    "lack", "denies", "deny", "denied", "unlikely", "despite", "wont",
+    "cannot", "cant", "halts", "halted", "less", "fewer", "misses",
+}
+NEGATION_WINDOW = 3  # tokens after a negator that get flipped
 
 
 @dataclass
@@ -51,17 +75,66 @@ class NewsSentimentResult:
     neutral_count: int = 0
 
 
+def _strip_publisher(title: str) -> str:
+    """
+    Remove the ' - Publisher' suffix Google News RSS appends to every title.
+
+    Without this, publisher names leak into the token stream and can trip
+    keyword matches ("Business Standard", "Mint", "The Hindu BusinessLine").
+    """
+    if " - " in title:
+        head, _, tail = title.rpartition(" - ")
+        # Only strip when the tail looks like a masthead, not part of the story.
+        if head and len(tail.split()) <= 5:
+            return head.strip()
+    return title.strip()
+
+
+def _tokenise(text: str) -> list[str]:
+    """Lowercase word tokens with punctuation stripped."""
+    return [w.strip(",.!?\"'();:—–-") for w in text.lower().split()]
+
+
 def _analyze_text_sentiment(text: str) -> tuple[float, str]:
-    """Calculate sentiment score (-1 to +1) for a news title."""
-    words = text.lower().split()
-    bull_hits = sum(1 for w in words if w.strip(",.!?\"'") in BULLISH_KEYWORDS)
-    bear_hits = sum(1 for w in words if w.strip(",.!?\"'") in BEARISH_KEYWORDS)
+    """
+    Calculate sentiment score (-1 to +1) for a news title.
+
+    Handles negation: a sentiment word within NEGATION_WINDOW tokens after a
+    negator has its polarity flipped. So "profit falls" scores bearish rather
+    than cancelling to neutral, and "no growth" is not read as bullish.
+    """
+    words = _tokenise(_strip_publisher(text))
+
+    bull_hits = 0.0
+    bear_hits = 0.0
+    negate_until = -1
+
+    for idx, word in enumerate(words):
+        if not word:
+            continue
+
+        if word in NEGATORS:
+            negate_until = idx + NEGATION_WINDOW
+            continue
+
+        negated = idx <= negate_until
+
+        if word in BULLISH_KEYWORDS:
+            if negated:
+                bear_hits += 1
+            else:
+                bull_hits += 1
+        elif word in BEARISH_KEYWORDS:
+            if negated:
+                bull_hits += 1
+            else:
+                bear_hits += 1
 
     total = bull_hits + bear_hits
     if total == 0:
         return 0.0, "Neutral"
 
-    score = (bull_hits - bear_hits) / max(total, 1)
+    score = (bull_hits - bear_hits) / total
     if score >= 0.3:
         label = "Bullish"
     elif score <= -0.3:
@@ -96,12 +169,25 @@ def fetch_news_sentiment(symbol: str, company_name: Optional[str] = None) -> New
         resp = requests.get(rss_url, headers=headers, timeout=6)
         if resp.status_code == 200:
             root = ET.fromstring(resp.content)
-            for item in root.findall(".//item")[:6]:
-                title = item.findtext("title", "").strip()
+            seen_titles: set[str] = set()
+
+            # 20 headlines rather than 6 — a handful of titles is too thin a
+            # base to call a sentiment reading.
+            for item in root.findall(".//item")[:20]:
+                raw_title = item.findtext("title", "").strip()
+                if not raw_title:
+                    continue
+
+                title = _strip_publisher(raw_title)
+                dedup_key = title.lower()
+                if dedup_key in seen_titles:
+                    continue
+                seen_titles.add(dedup_key)
+
                 link = item.findtext("link", "")
                 pub_date = item.findtext("pubDate", "")[:16]
 
-                score, label = _analyze_text_sentiment(title)
+                score, label = _analyze_text_sentiment(raw_title)
 
                 if label == "Bullish":
                     bull_cnt += 1

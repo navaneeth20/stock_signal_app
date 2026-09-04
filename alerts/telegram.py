@@ -15,22 +15,33 @@ from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 logger = logging.getLogger(__name__)
 
 
-def send_telegram_alert(message: str, chat_id: str = TELEGRAM_CHAT_ID) -> bool:
+def send_telegram_alert(
+    message: str,
+    chat_id: str = "",
+    bot_token: str = "",
+) -> bool:
     """
     Send a message via Telegram Bot API.
 
     Args:
-        message: The text message to send (supports HTML).
-        chat_id: Target chat ID (defaults to config value).
+        message:   The text message to send (supports HTML).
+        chat_id:   Target chat ID. Falls back to the configured value.
+        bot_token: Bot token. Falls back to the configured value. This used to
+                   be ignored entirely, so a token typed into the UI had no
+                   effect and the alert silently failed.
 
     Returns:
         True if sent successfully, False otherwise.
     """
-    if not TELEGRAM_BOT_TOKEN or not chat_id:
+    token = (bot_token or TELEGRAM_BOT_TOKEN or "").strip()
+    target_chat = (chat_id or TELEGRAM_CHAT_ID or "").strip()
+
+    if not token or not target_chat:
         logger.warning("Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
         return False
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    chat_id = target_chat
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": message,

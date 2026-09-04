@@ -1,0 +1,24 @@
+# Streamlit's own theme, matched to the Control Panel tokens in config.py.
+#
+# This is load-bearing, not decoration. Streamlit colours its native widgets —
+# input labels, text inputs, tabs, sliders, dataframes — from THIS theme, not
+# from the custom CSS in app.py. With the default dark base, the app rendered a
+# light page with white labels and dark input fields: invisible text on a light
+# ground. Custom CSS can only paper over so much of that, so the base theme has
+# to agree with the design system.
+#
+# Keep these values in sync with UI_LIGHT in config.py.
+
+[theme]
+base = "light"
+primaryColor = "#3D4FB8"           # accent
+backgroundColor = "#F5F7F9"        # ground
+secondaryBackgroundColor = "#FFFFFF"  # panel
+textColor = "#10161F"              # ink
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

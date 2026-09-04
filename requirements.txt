@@ -1,9 +1,24 @@
-streamlit>=1.35.0
-pandas>=2.2.0
-numpy>=1.26.0
-plotly>=5.22.0
-yfinance>=0.2.40
-requests>=2.31.0
-openai>=1.30.0
-scipy>=1.13.0
-python-dotenv>=1.0.0
+# Direct dependencies with tested lower bounds and major-version ceilings.
+# For a byte-identical environment use requirements.lock.txt instead:
+#     pip install -r requirements.lock.txt
+#
+# Verified working on the versions in the lock file (Python 3.12.10).
+
+# Streamlit's generated class names and data-testid attributes change between
+# releases, and app.py's CSS targets several of them directly
+# (stSidebar, stRadio, stFormSubmitButton, stButton). Do not float this across
+# a major version without re-checking the theming — the README notes which
+# selectors are load-bearing.
+streamlit>=1.62,<2.0
+
+pandas>=2.2,<4.0
+numpy>=1.26,<3.0
+plotly>=5.22,<7.0
+yfinance>=0.2.40,<2.0
+requests>=2.31,<3.0
+openai>=1.30,<4.0
+scipy>=1.13,<2.0
+python-dotenv>=1.0,<2.0
+
+# Testing
+pytest>=8.0,<10.0

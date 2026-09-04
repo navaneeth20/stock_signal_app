@@ -1,0 +1,38 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "A — Trading Desk", "x": 0, "y": 0, "w": 1040, "h": 900 },
+    { "file": "ResearchNote.dc.html", "title": "B — Research Note", "x": 1160, "y": 0, "w": 1040, "h": 900 },
+    { "file": "ControlPanel.dc.html", "title": "C — Control Panel", "x": 2320, "y": 0, "w": 1040, "h": 900 }
+  ],
+  "annotations": [
+    {
+      "id": "dir-a",
+      "x": 0,
+      "y": -210,
+      "w": 460,
+      "text": "A — TRADING DESK\n\nMaximum density, dark, monospace. Hairline rules instead of cards; colour reserved strictly for buy/sell state, everything else greyscale. Reads like a professional desk tool.\n\nTrade-off: unforgiving for casual users, and the density fights small screens."
+    },
+    {
+      "id": "dir-b",
+      "x": 1160,
+      "y": -210,
+      "w": 460,
+      "text": "B — RESEARCH NOTE\n\nPaper, serif, editorial. The signal is argued in prose with a table of evidence beside it, the way a sell-side note reads. Most credible-feeling of the three.\n\nTrade-off: least glanceable, and it does not feel live."
+    },
+    {
+      "id": "dir-c",
+      "x": 2320,
+      "y": -210,
+      "w": 460,
+      "text": "C — CONTROL PANEL\n\nLight neutral, calm panels, one accent, clear type scale. Closest to a modern product dashboard; easiest to scan and to extend with new blocks.\n\nTrade-off: lowest density, so more scrolling — and the most familiar-looking of the three."
+    },
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -350,
+      "w": 700,
+      "text": "StockSense Signal Terminal — three directions. Real data throughout (RELIANCE, Sell at 33.2%). No emoji, no icons, no images anywhere: hierarchy comes from type, rule weight and spacing alone. All three are plain CSS, so any of them is buildable in Streamlit. Pick one and I'll implement it across every tab."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

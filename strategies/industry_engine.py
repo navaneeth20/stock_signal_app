@@ -90,25 +90,25 @@ def analyze_sector_performance() -> List[Dict[str, Any]]:
         if score_1m >= 75.0:
             trend_label = "Strong Bullish Continuation"
             trend_icon = "🚀"
-            trend_color = "#00e676"
+            trend_color = "var(--pos)"
             target_range = f"+{avg_ret_1m * 0.4 + 3.5:.1f}% to +{avg_ret_1m * 0.6 + 7.5:.1f}%"
             outlook_text = "Strong institutional accumulation. High probability of sector outperformance over Nifty 50 over the next 30 days."
         elif score_1m >= 60.0:
             trend_label = "Bullish Accumulation"
             trend_icon = "📈"
-            trend_color = "#388bfd"
+            trend_color = "var(--accent)"
             target_range = f"+{avg_ret_1m * 0.3 + 2.0:.1f}% to +{avg_ret_1m * 0.5 + 4.5:.1f}%"
             outlook_text = "Steady buying momentum. Expect healthy pullbacks to 20-day moving averages as accumulation continues."
         elif score_1m >= 42.0:
             trend_label = "Neutral Consolidation"
             trend_icon = "⚖️"
-            trend_color = "#ffb300"
+            trend_color = "var(--ink-2)"
             target_range = "-1.5% to +2.5%"
             outlook_text = "Sideways rangebound action expected. Industry is digesting recent moves prior to next earnings catalyst."
         else:
             trend_label = "Bearish Pullback"
             trend_icon = "🔻"
-            trend_color = "#ff1744"
+            trend_color = "var(--neg)"
             target_range = "-3.5% to -7.5%"
             outlook_text = "Underperforming general market benchmark. High downside risk over the next 30 days."
 

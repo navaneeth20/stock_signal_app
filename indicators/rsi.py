@@ -34,14 +34,34 @@ def compute_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     return result
 
 
-def rsi_signal(df: pd.DataFrame, overbought: float = 70, oversold: float = 30) -> dict:
+def rsi_signal(
+    df: pd.DataFrame,
+    overbought: float = 70,
+    oversold: float = 30,
+    adx_value: float | None = None,
+    trending_threshold: float = 25.0,
+) -> dict:
     """
     Derive RSI-based signal.
 
+    This engine is trend-following at its core (EMA + MACD + Supertrend carry
+    60% of the weight), so RSI is read as a momentum confirmation by default:
+    high RSI is bullish, not a sell.
+
+    The mean-reverting reading (high RSI = overbought = fade it) is only valid
+    in a range-bound market, so it is applied only when ADX says the market is
+    NOT trending. Pass ``adx_value`` to enable that gate; without it the
+    momentum reading is used throughout.
+
+    Scores span the full -2..+2 range so RSI can deliver its configured weight
+    in both directions.
+
     Args:
-        df:          DataFrame with 'RSI' column.
-        overbought:  RSI level considered overbought.
-        oversold:    RSI level considered oversold.
+        df:                 DataFrame with 'RSI' column.
+        overbought:         RSI level considered overbought.
+        oversold:           RSI level considered oversold.
+        adx_value:          Current ADX, used to gate the mean-reversion read.
+        trending_threshold: ADX level above which the market counts as trending.
 
     Returns:
         dict with signal, score, reasons.
@@ -49,23 +69,40 @@ def rsi_signal(df: pd.DataFrame, overbought: float = 70, oversold: float = 30) -
     if "RSI" not in df.columns or df["RSI"].isna().all():
         return {"signal": 0, "score": 0, "reasons": ["RSI not available"]}
 
-    rsi = df["RSI"].iloc[-1]
+    rsi = float(df["RSI"].iloc[-1])
+    if pd.isna(rsi):
+        return {"signal": 0, "score": 0, "reasons": ["RSI not available"]}
+
     score = 0
     reasons: list[str] = []
 
-    if rsi < oversold:
+    # Ranging market → RSI extremes are reversal signals (mean reversion).
+    is_ranging = adx_value is not None and not pd.isna(adx_value) and adx_value < trending_threshold
+
+    if is_ranging and rsi <= oversold:
+        score = 2
+        reasons.append(
+            f"RSI {rsi:.1f} — Oversold in a ranging market (ADX {adx_value:.1f}) — reversal up likely"
+        )
+    elif is_ranging and rsi >= overbought:
         score = -2
-        reasons.append(f"RSI {rsi:.1f} — Oversold (possible reversal up)")
-    elif rsi < 45:
-        score = -1
-        reasons.append(f"RSI {rsi:.1f} — Bearish territory")
-    elif rsi > overbought:
-        score = -1
-        reasons.append(f"RSI {rsi:.1f} — Overbought (caution)")
+        reasons.append(
+            f"RSI {rsi:.1f} — Overbought in a ranging market (ADX {adx_value:.1f}) — fade the move"
+        )
+    # Trending market (or ADX unknown) → RSI confirms momentum direction.
+    elif rsi >= 60:
+        score = 2
+        reasons.append(f"RSI {rsi:.1f} — Strong bullish momentum")
     elif rsi > 55:
         score = 1
         reasons.append(f"RSI {rsi:.1f} — Bullish territory")
-    elif 45 <= rsi <= 55:
+    elif rsi <= 40:
+        score = -2
+        reasons.append(f"RSI {rsi:.1f} — Strong bearish momentum")
+    elif rsi < 45:
+        score = -1
+        reasons.append(f"RSI {rsi:.1f} — Bearish territory")
+    else:
         score = 0
         reasons.append(f"RSI {rsi:.1f} — Neutral zone")
 

@@ -10,10 +10,12 @@ Run with:
 
 from __future__ import annotations
 
+import html
 import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from textwrap import dedent
 from typing import Optional
@@ -34,7 +36,9 @@ from config import (
     APP_VERSION,
     AI_MAX_TOKENS,
     AI_MODEL,
+    BT_COMMISSION,
     BT_DEFAULT_CAPITAL,
+    BT_SLIPPAGE,
     DEFAULT_CAPITAL,
     DEFAULT_INTERVAL,
     DEFAULT_RISK_PER_TRADE,
@@ -43,7 +47,6 @@ from config import (
     OPENAI_API_KEY,
 
     OPENAI_BASE_URL,
-    SIGNAL_COLORS,
     SIGNAL_EMOJI,
     SUPPORTED_INTERVALS,
 )
@@ -52,35 +55,39 @@ from alerts.telegram import format_signal_message, send_telegram_alert
 from backtesting.backtest import run_backtest
 from charts.candlestick import build_equity_curve, build_price_chart
 from data.fetch_data import (
+    fetch_multiple_stocks,
     fetch_ohlcv,
     get_company_info,
     get_sector_peers,
     get_stock_name,
     normalise_symbol,
 )
-from data.institutional_flows import fetch_institutional_flows
+from data.institutional_flows import fetch_accumulation_proxy
 from data.news_sentiment import fetch_news_sentiment
 
 
 from database import (
+    MIN_PASSWORD_LENGTH,
     add_to_watchlist,
-    create_or_update_user,
-    get_all_users,
+    authenticate_user,
+    count_users,
     get_eod_summary,
     get_recent_signals,
     get_search_history,
-    get_user_by_email,
-    get_user_by_phone,
     get_watchlist,
     initialise_db,
     is_in_watchlist,
     log_search_event,
+    register_user,
     remove_from_watchlist,
     save_signal,
 )
 from indicators.mtf import compute_mtf_alignment
 from reports import (
     INSTITUTIONAL_PROMPTS,
+    NUMERIC_PROMPTS,
+    RESEARCH_DISCLAIMER,
+    build_grounded_prompt,
     call_gemini_api,
     call_openai_api,
     generate_fallback_institutional_report,
@@ -90,7 +97,11 @@ from strategies.industry_engine import analyze_sector_performance
 from strategies.risk import calculate_risk
 
 
-from strategies.signal_engine import compute_all_indicators, generate_signal
+from strategies.signal_engine import (
+    apply_confidence_modifier,
+    compute_all_indicators,
+    generate_signal,
+)
 from utils.helpers import color_for_signal, format_inr, format_volume, pct_change
 from utils.quant_risk import run_monte_carlo_simulation
 
@@ -106,7 +117,7 @@ logger = logging.getLogger(__name__)
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title=f"{APP_NAME} — {APP_TAGLINE}",
-    page_icon="📈",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -115,136 +126,343 @@ st.set_page_config(
     },
 )
 
-# ── Global Layout & Typography CSS ──────────────────────────────────────────────
+# ── Design system: "Control Panel" ────────────────────────────────────────────
+# Light is the baseline and is injected at module scope, so it applies to every
+# screen including the login page. The sidebar's theme control layers a dark
+# override on top of this.
+#
+# Rules this stylesheet holds to, so later edits don't drift:
+#   * Colour is semantic only — buy/sell/hold and one accent. Everything
+#     structural is greyscale.
+#   * No gradient text, no glows, no coloured drop shadows.
+#   * Hierarchy comes from type weight, rule weight and spacing.
+#   * Numerals are tabular JetBrains Mono so columns of figures line up.
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* ── Typography & Monospace ── */
-html, body, [class*="css"] {
-    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+:root {
+    --ground: #F5F7F9;
+    --panel: #FFFFFF;
+    --panel-alt: #EEF1F6;
+    --border: #E4E8ED;
+    --border-soft: #EEF1F6;
+    --ink: #10161F;
+    --ink-2: #5F6B7A;
+    --ink-3: #8B95A3;
+    --ink-4: #7E8896;
+    --accent: #3D4FB8;
+    --accent-hover: #2F3E96;
+    --accent-wash: #EEF0FB;
+    --pos: #1F8A5B;
+    --neg: #C0392F;
+    --warn: #8B7320;
+    --neutral-bar: #B4BDC9;
+    --radius: 10px;
+    --radius-sm: 7px;
+
+    /* Signal scale. Call sites emit var(--sig-*) rather than a literal, so a
+       signal keeps its meaning in both themes without duplicated Python. */
+    --sig-strong-buy: #15774B;
+    --sig-buy: #1F8A5B;
+    --sig-hold: #8B7320;
+    --sig-sell: #C0392F;
+    --sig-strong-sell: #96271F;
+}
+
+/* ── Typography ── */
+html, body, [class*="css"], .stApp, [data-testid="stSidebar"] {
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
 }
-.mono-font {
-    font-family: 'JetBrains Mono', monospace !important;
+.mono-font, .metric-value {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
 }
 
-/* ── Streamlit Top Header Transparent Bar ── */
-header[data-testid="stHeader"],
-[data-testid="stHeader"] {
-    background-color: transparent !important;
+.stApp {
+    background: var(--ground) !important;
+    background-image: none !important;
+    color: var(--ink) !important;
+}
+
+/* ── Streamlit chrome ── */
+header[data-testid="stHeader"], [data-testid="stHeader"] {
     background: transparent !important;
     box-shadow: none !important;
 }
+[data-testid="stSidebar"] {
+    background: var(--panel) !important;
+    border-right: 1px solid var(--border) !important;
+}
+[data-testid="stSidebar"] *,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span {
+    color: var(--ink) !important;
+}
+[data-testid="stSidebar"] .section-header { color: var(--ink) !important; }
 
-/* ── Segmented Navigation Bar Pill Layout ── */
-div[data-testid="stRadio"] {
-    margin-bottom: 22px !important;
-}
-div[data-testid="stRadio"] > label {
-    display: none !important;
-}
+/* ── Segmented navigation ── */
+div[data-testid="stRadio"] { margin-bottom: 20px !important; }
+div[data-testid="stRadio"] >label { display: none !important; }
 div[data-testid="stRadio"] [role="radiogroup"] {
     display: flex !important;
     flex-wrap: wrap !important;
-    gap: 8px !important;
-    background: transparent !important;
-    padding: 0 !important;
-    border: none !important;
+    gap: 4px !important;
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 5px !important;
 }
-
-/* Individual Pill Base Style */
 div[data-testid="stRadio"] [role="radiogroup"] label {
     display: inline-flex !important;
     align-items: center !important;
-    justify-content: center !important;
-    padding: 10px 18px !important;
-    border-radius: 10px !important;
-    font-weight: 700 !important;
-    font-size: 11.5px !important;
-    letter-spacing: 0.04em !important;
-    text-transform: uppercase !important;
+    padding: 7px 13px !important;
+    border-radius: var(--radius-sm) !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    color: var(--ink-2) !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
     cursor: pointer !important;
     white-space: nowrap !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
     margin: 0 !important;
-    user-select: none !important;
-    line-height: 1.2 !important;
 }
-
-/* Hide Radio Circle Dots */
-div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child,
-div[data-testid="stRadio"] [role="radiogroup"] label input[type="radio"],
-div[data-testid="stRadio"] [role="radiogroup"] label span:first-child:not([data-testid="stMarkdownContainer"] *) {
+div[data-testid="stRadio"] [role="radiogroup"] label p,
+div[data-testid="stRadio"] [role="radiogroup"] label span {
+    color: inherit !important;
+    font-size: 12.5px !important;
+    font-weight: inherit !important;
+    margin: 0 !important;
+}
+div[data-testid="stRadio"] [role="radiogroup"] label >div:first-child,
+div[data-testid="stRadio"] [role="radiogroup"] label input[type="radio"] {
     display: none !important;
-    visibility: hidden !important;
-    width: 0px !important;
-    height: 0px !important;
+}
+div[data-testid="stRadio"] [role="radiogroup"] label:hover {
+    background: var(--panel-alt) !important;
+    color: var(--ink) !important;
+}
+div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
+    background: var(--panel-alt) !important;
+    color: var(--ink) !important;
+    font-weight: 600 !important;
 }
 
+/* ── Panels ── */
+.hero-header, .hero-signal-card, .metric-card, .ai-box, .placeholder-card,
+.user-profile-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--ink);
+    box-shadow: none;
+}
+.hero-header { padding: 20px 26px; margin-bottom: 18px; }
+.hero-signal-card { padding: 24px 26px; margin-bottom: 16px; }
+.metric-card {
+    padding: 15px 17px; height: 100%;
+    display: flex; flex-direction: column; gap: 7px; justify-content: center;
+}
+.ai-box { padding: 20px 24px; font-size: 14.5px; line-height: 1.65; }
+.placeholder-card { padding: 56px 28px; text-align: center; }
+.user-profile-card { padding: 14px; margin-bottom: 12px; }
 
+.metric-label {
+    font-size: 11px; font-weight: 600; color: var(--ink-2);
+    letter-spacing: 0; text-transform: none; line-height: 1.3;
+}
+.metric-value {
+    font-size: 18px; font-weight: 600; line-height: 1.25; color: var(--ink);
+}
 
-/* ── General Header Components ── */
+.section-header {
+    font-size: 14px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.01em; text-transform: none;
+    border-bottom: none; padding-bottom: 0;
+    margin: 26px 0 12px;
+}
+
+/* ── Buttons, including form submits ── */
+.stButton >button,
+[data-testid="stFormSubmitButton"] button {
+    background: var(--panel) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: 'Manrope', system-ui, sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    box-shadow: none !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+}
+.stButton >button:hover,
+[data-testid="stFormSubmitButton"] button:hover {
+    background: var(--panel-alt) !important;
+    border-color: var(--ink-4) !important;
+    color: var(--ink) !important;
+    transform: none !important;
+}
+.stButton >button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] {
+    background: var(--accent) !important;
+    color: #FFFFFF !important;
+    border-color: var(--accent) !important;
+}
+.stButton >button[kind="primary"]:hover,
+[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"]:hover {
+    background: var(--accent-hover) !important;
+    border-color: var(--accent-hover) !important;
+    color: #FFFFFF !important;
+}
+.stButton >button[kind="primary"] *,
+[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] * {
+    color: #FFFFFF !important;
+}
+.stButton >button:focus-visible,
+[data-testid="stFormSubmitButton"] button:focus-visible {
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px !important;
+}
+
+/* ── Inputs ── */
+div[data-baseweb="select"] >div,
+div[data-baseweb="input"] >div,
+div[data-baseweb="base-input"] {
+    background: var(--panel) !important;
+    border-color: var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--ink) !important;
+}
+div[data-baseweb="select"] span,
+div[data-baseweb="input"] input,
+input, select, textarea {
+    color: var(--ink) !important;
+    -webkit-text-fill-color: var(--ink) !important;
+}
+input::placeholder, textarea::placeholder {
+    color: var(--ink-4) !important;
+    -webkit-text-fill-color: var(--ink-4) !important;
+}
+
+/* Widget labels. Streamlit colours these from its OWN theme, so they have to
+   be pinned here as well — otherwise they render in the base theme's ink and
+   can come out invisible against our ground. */
+[data-testid="stWidgetLabel"],
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] label,
+[data-testid="stWidgetLabel"] div {
+    color: var(--ink-2) !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+}
+
+/* ── Slider ── */
+/* Streamlit paints the thumb's value badge in theme ink, which lands dark-on-
+   accent. Force it to the accent's own foreground. */
+[data-testid="stThumbValue"] {
+    color: var(--ink) !important;
+    background: transparent !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11.5px !important;
+}
+[data-testid="stSliderThumbValue"] { color: var(--ink) !important; }
+[data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {
+    color: var(--ink-3) !important;
+    font-size: 10.5px !important;
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab"] {
+    height: auto !important;
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--ink-2) !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab"]:hover { color: var(--ink) !important; }
+.stTabs [aria-selected="true"] { color: var(--ink) !important; }
+/* Streamlit's own indicator uses its theme primary, which shows as red on the
+   stock theme — the underline in the sign-in tabs. */
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] {
+    background-color: var(--accent) !important;
+}
+
+/* ── Streamlit native blocks ── */
+[data-testid="stMetric"] {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+}
+[data-testid="stMetricValue"] {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 20px !important; font-weight: 600 !important; color: var(--ink) !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 11px !important; font-weight: 600 !important; color: var(--ink-2) !important;
+}
+[data-testid="stExpander"] {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+[data-testid="stExpander"] summary { font-size: 13px; font-weight: 600; }
+.stDataFrame, [data-testid="stTable"] { border-radius: var(--radius); }
+hr { border-color: var(--border) !important; }
+
+/* ── Status callouts ── */
+[data-testid="stAlert"] {
+    border-radius: var(--radius-sm) !important;
+    border-width: 1px !important;
+    box-shadow: none !important;
+    font-size: 13.5px !important;
+}
+
+/* ── Live indicator ── */
 .live-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(46, 160, 67, 0.12);
-    border: 1px solid rgba(46, 160, 67, 0.35);
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #3fb950;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--panel-alt); border: 1px solid var(--border);
+    padding: 4px 11px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; color: var(--ink-2);
+    letter-spacing: 0; text-transform: none;
 }
 .pulsing-dot {
-    width: 7px;
-    height: 7px;
-    background-color: #3fb950;
-    border-radius: 50%;
-    box-shadow: 0 0 10px #3fb950;
-    animation: pulse 1.8s infinite;
-}
-@keyframes pulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
-    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+    width: 6px; height: 6px; background: var(--pos);
+    border-radius: 50%; box-shadow: none;
 }
 
-    box-shadow: 0 8px 24px rgba(46, 160, 67, 0.45) !important;
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--ink-4); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
 }
 
-/* ── Inputs & Selectboxes ── */
-div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
-    background-color: rgba(13, 17, 23, 0.7) !important;
-    border-color: rgba(88, 166, 255, 0.2) !important;
-    border-radius: 8px !important;
-    color: #f0f6fc !important;
-}
-
-/* ── Custom Scrollbar ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #080b10; }
-::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
-
-/* ── Mobile Responsive ── */
+/* ── Narrow screens ── */
 @media (max-width: 768px) {
-    .hero-header {
-        padding: 16px 14px !important;
-        margin-bottom: 16px !important;
-    }
-    .stTabs [data-baseweb="tab-list"] {
+    .hero-header { padding: 15px 16px; margin-bottom: 14px; }
+    .hero-signal-card { padding: 18px 16px; }
+    .metric-card { padding: 12px 13px; }
+    .metric-value { font-size: 16px; }
+    .ai-box { padding: 16px; }
+    div[data-testid="stRadio"] [role="radiogroup"] {
         overflow-x: auto !important;
-        white-space: nowrap !important;
-        gap: 4px !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        padding: 7px 12px !important;
-        font-size: 12px !important;
+        flex-wrap: nowrap !important;
     }
 }
 </style>
@@ -254,7 +472,7 @@ div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
 
 
 # ── Session state init ────────────────────────────────────────────────────────
-def _init_session() -> None:
+def _init_session() ->None:
     defaults = {
         "df": None,
         "signal_result": None,
@@ -269,91 +487,149 @@ def _init_session() -> None:
         if key not in st.session_state:
             st.session_state[key] = val
 
+
+# ── Control Panel: dark tokens ────────────────────────────────────────────────
+# Applied by the sidebar's Appearance control. Light is the baseline injected
+# at module scope, so it reaches the login page too; this only re-points the
+# custom properties on top.
+CONTROL_PANEL_DARK_CSS = """
+<style>
+/* Dark counterpart of the Control Panel system. Only the tokens change —
+   every component rule in the base stylesheet reads through these variables,
+   so geometry, weight and spacing stay identical between themes.
+
+   Selectors are doubled (:root:root, :root .stApp) to raise specificity above
+   the base stylesheet's. That is load-bearing: this block is injected from the
+   sidebar, and Streamlit places the sidebar BEFORE main in the DOM, so the
+   base stylesheet always lands later in document order and wins any tie on
+   equal specificity. Without the doubling, dark mode silently does nothing. */
+:root:root {
+    --ground: #0F1318;
+    --panel: #161B22;
+    --panel-alt: #1C222B;
+    --border: #252C36;
+    --border-soft: #1D232B;
+    --ink: #E6EAF0;
+    --ink-2: #9BA6B4;
+    --ink-3: #7A8593;
+    --ink-4: #5E6874;
+    --accent: #7C8CE8;
+    --accent-hover: #95A3F0;
+    --accent-wash: #1B2138;
+    --pos: #3FAE79;
+    --neg: #E06A5F;
+    --warn: #C9A227;
+    --neutral-bar: #3A434F;
+
+    --sig-strong-buy: #4FBF8B;
+    --sig-buy: #3FAE79;
+    --sig-hold: #C9A227;
+    --sig-sell: #E06A5F;
+    --sig-strong-sell: #E5484D;
+}
+:root .stApp { background: var(--ground) !important; color: var(--ink) !important; }
+:root [data-testid="stSidebar"] { background: var(--panel) !important; }
+:root [data-testid="stSidebar"] *,
+:root [data-testid="stSidebar"] p,
+:root [data-testid="stSidebar"] label,
+:root [data-testid="stSidebar"] span { color: var(--ink) !important; }
+
+/* On the dark ground the accent is light, so button text has to invert. */
+:root .stButton > button[kind="primary"],
+:root .stButton > button[kind="primary"] *,
+:root [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"],
+:root [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] * {
+    color: #0F1318 !important;
+}
+:root [data-testid="stMetricValue"] { color: var(--ink) !important; }
+:root [data-testid="stMetricLabel"] { color: var(--ink-2) !important; }
+</style>
+"""
+
+
 _init_session()
 initialise_db()
 
 
 def render_login_page() -> None:
-    """Render an Institutional Enterprise Access Portal."""
-    st.markdown(
-        f"""
-        <div style="max-width:620px; margin: 30px auto 20px auto; padding:36px; background:linear-gradient(145deg, rgba(13,17,23,0.95), rgba(22,27,34,0.98)); border:1px solid rgba(88,166,255,0.3); border-radius:20px; box-shadow:0 24px 60px rgba(0,0,0,0.7); text-align:center;">
-            <div style="display:inline-flex; align-items:center; justify-content:center; width:56px; height:56px; background:linear-gradient(135deg, #1f6feb, #388bfd); border-radius:14px; box-shadow:0 6px 20px rgba(31,111,235,0.4); margin-bottom:16px;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <div style="font-size:11px; font-weight:700; color:#58a6ff; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:6px;">Enterprise Institutional Access</div>
-            <h2 style="color:#f0f6fc; margin:0 0 8px 0; font-weight:800; font-size:25px; letter-spacing:-0.01em;">{APP_NAME} Terminal</h2>
-            <p style="color:#8b949e; font-size:13.5px; margin-bottom:0;">{APP_TAGLINE}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col1, col2, col3 = st.columns([1, 2.5, 1])
+    """Render the sign-in screen."""
+    # Title and form share one narrow centred column so they align on the same
+    # left edge, rather than a wide banner floating over a narrower form.
+    col1, col2, col3 = st.columns([1, 1.7, 1])
     with col2:
-        registered_users = get_all_users()
-        
-        login_tab1, login_tab2 = st.tabs(["MEMBER ACCESS", "NEW ACCOUNT SETUP"])
-        
-        with login_tab1:
-            if registered_users:
-                st.markdown("<div style='font-size:13px; font-weight:700; color:#8b949e; margin-bottom:8px;'>SELECT REGISTERED INSTITUTIONAL PROFILE</div>", unsafe_allow_html=True)
-                user_options = {
-                    f"{u['name'].upper()} • {u['email']} (Phone: {u['phone']})": u for u in registered_users
-                }
-                selected_user_str = st.selectbox("Registered Accounts", list(user_options.keys()), key="select_user_dropdown")
-                if st.button("ACCESS INSTITUTIONAL TERMINAL", key="btn_quick_signin", use_container_width=True, type="primary"):
-                    user_data = user_options[selected_user_str]
-                    updated_user = create_or_update_user(user_data['name'], user_data['phone'], user_data['email'])
-                    st.session_state['user'] = updated_user
-                    st.session_state['is_logged_in'] = True
-                    st.success(f"Authenticated successfully as {user_data['name']}.")
-                    time.sleep(0.3)
-                    st.rerun()
-            else:
-                st.info("No saved accounts found in session audit log. Please set up your credentials below.")
+        st.markdown(
+            f"""
+            <div style="margin:52px 0 22px 0;">
+                <div style="font-size:23px; font-weight:800; letter-spacing:-0.02em; color:var(--ink); margin-bottom:5px;">{APP_NAME}</div>
+                <div style="font-size:14px; color:var(--ink-2);">{APP_TAGLINE}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        # No account listing here. Rendering every registered name, email and
+        # phone before authentication — and letting one click sign in as any of
+        # them — was both a full PII disclosure and a complete auth bypass.
+        login_tab1, login_tab2 = st.tabs(["Sign in", "Create account"])
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div style='font-size:13px; font-weight:700; color:#8b949e; margin-bottom:8px;'>OR SEARCH VIA EMAIL / PHONE</div>", unsafe_allow_html=True)
-            lookup_query = st.text_input("Email Address or Phone Number", key="lookup_input", placeholder="e.g. trader@institution.com or +91 9876543210")
-            if st.button("Authenticate Profile", key="btn_lookup_signin", use_container_width=True):
-                if lookup_query.strip():
-                    found_user = get_user_by_email(lookup_query) or get_user_by_phone(lookup_query)
-                    if found_user:
-                        updated_user = create_or_update_user(found_user['name'], found_user['phone'], found_user['email'])
-                        st.session_state['user'] = updated_user
-                        st.session_state['is_logged_in'] = True
-                        st.success(f"Authenticated as {found_user['name']}.")
-                        time.sleep(0.3)
-                        st.rerun()
-                    else:
-                        st.error("No account record matched that email or phone number.")
+        with login_tab1:
+            with st.form("signin_form"):
+                signin_email = st.text_input(
+                    "Email address",
+                    key="signin_email",
+                    placeholder="you@example.com",
+                )
+                signin_password = st.text_input(
+                    "Password",
+                    type="password",
+                    key="signin_password",
+                )
+                submit_signin = st.form_submit_button(
+                    "Sign in", use_container_width=True, type="primary"
+                )
+
+            if submit_signin:
+                ok, message, user_rec = authenticate_user(signin_email, signin_password)
+                if ok and user_rec:
+                    st.session_state["user"] = user_rec
+                    st.session_state["is_logged_in"] = True
+                    st.rerun()
                 else:
-                    st.warning("Please enter your registered email address or phone number.")
+                    st.error(message)
 
         with login_tab2:
-            st.markdown("<div style='font-size:13px; font-weight:700; color:#8b949e; margin-bottom:8px;'>CREATE ENTERPRISE USER PROFILE</div>", unsafe_allow_html=True)
             with st.form("registration_form"):
-                reg_name = st.text_input("Full Legal Name", placeholder="e.g. Navaneeth Kumar")
-                reg_phone = st.text_input("Phone Number (+91)", placeholder="e.g. +91 9876543210")
-                reg_email = st.text_input("Corporate Email Address", placeholder="e.g. navaneeth@firm.com")
-                submit_reg = st.form_submit_button("REGISTER & LAUNCH TERMINAL", use_container_width=True)
+                reg_name = st.text_input("Full name", placeholder="e.g. Navaneeth Kumar")
+                reg_phone = st.text_input("Phone number", placeholder="e.g. +91 9876543210")
+                reg_email = st.text_input("Email address", placeholder="e.g. navaneeth@firm.com")
+                reg_password = st.text_input(
+                    "Password",
+                    type="password",
+                    help=f"At least {MIN_PASSWORD_LENGTH} characters.",
+                )
+                reg_password2 = st.text_input("Confirm password", type="password")
+                submit_reg = st.form_submit_button(
+                    "Create account", use_container_width=True
+                )
 
-
-                if submit_reg:
-                    if not reg_name.strip():
-                        st.error("Please enter your Full Name.")
-                    elif not reg_phone.strip():
-                        st.error("Please enter your Phone Number.")
-                    elif not reg_email.strip() or "@" not in reg_email:
-                        st.error("Please enter a valid Email Address.")
-                    else:
-                        user_rec = create_or_update_user(reg_name, reg_phone, reg_email)
-                        st.session_state['user'] = user_rec
-                        st.session_state['is_logged_in'] = True
-                        st.success(f"Profile created! Welcome, {user_rec['name']}.")
-                        time.sleep(0.3)
+            if submit_reg:
+                if reg_password != reg_password2:
+                    st.error("The two passwords don't match.")
+                else:
+                    ok, message, user_rec = register_user(
+                        reg_name, reg_phone, reg_email, reg_password
+                    )
+                    if ok and user_rec:
+                        st.session_state["user"] = user_rec
+                        st.session_state["is_logged_in"] = True
                         st.rerun()
+                    else:
+                        st.error(message)
+
+            st.caption(
+                "Your name, phone and email are stored in a local SQLite file so "
+                "the app can keep your watchlist separate from other users'. "
+                "They are never sent anywhere else."
+            )
 
 
 # Enforce Login Gate
@@ -369,10 +645,15 @@ if not st.session_state.get("is_logged_in"):
 with st.sidebar:
     # Logo + title
     current_user = st.session_state.get("user") or {}
-    user_display_name = current_user.get("name", "Trader")
-    user_email = current_user.get("email", "")
-    user_phone = current_user.get("phone", "")
-    
+    current_user_id = int(current_user.get("id") or 0)
+
+    # These three values are user-supplied at registration and are about to be
+    # interpolated into a raw HTML block. Escape them, or a name like
+    # `<img src=x onerror=...>` becomes stored XSS.
+    user_display_name = html.escape(str(current_user.get("name") or "Trader"))
+    user_email = html.escape(str(current_user.get("email") or ""))
+    user_phone = html.escape(str(current_user.get("phone") or ""))
+
     # Initials badge
     name_parts = user_display_name.strip().split()
     initials = "".join([p[0].upper() for p in name_parts[:2]]) if name_parts else "TR"
@@ -381,15 +662,15 @@ with st.sidebar:
         f"""
         <div class="user-profile-card">
             <div style="display:flex; align-items:center; gap:12px;">
-                <div style="background:linear-gradient(135deg,#1f6feb,#388bfd); width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#FFFFFF; box-shadow:0 4px 12px rgba(31,111,235,0.4); shrink:0;">{initials}</div>
+                <div style="background:linear-gradient(135deg,var(--accent),var(--accent)); width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#FFFFFF; box-shadow:0 4px 12px rgba(31,111,235,0.4); shrink:0;">{initials}</div>
                 <div>
                     <div style="font-size:13.5px; font-weight:700; line-height:1.2;">{user_display_name}</div>
-                    <div style="font-size:10px; font-weight:700; color:#58a6ff; letter-spacing:0.06em; margin-top:2px;">INSTITUTIONAL PRO</div>
+                    <div style="font-size:10px; font-weight:700; color:var(--accent); letter-spacing:0.06em; margin-top:2px;">Signed in</div>
                 </div>
             </div>
-            <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1); font-size:11px; opacity:0.85; word-break:break-all;">
-                <div>📧 {user_email if user_email else 'N/A'}</div>
-                {f'<div style="margin-top:2px;">📞 {user_phone}</div>' if user_phone else ''}
+            <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); font-size:11px; opacity:0.85; word-break:break-all;">
+                <div>{user_email if user_email else 'N/A'}</div>
+                {f'<div style="margin-top:2px;">{user_phone}</div>'if user_phone else ''}
             </div>
         </div>
         """,
@@ -404,405 +685,20 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Theme Selector ───────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>INTERFACE THEME</div>", unsafe_allow_html=True)
-    theme_choice = st.radio("UI Theme", ["🌙 Institutional Dark", "☀️ TailAdmin Light Dashboard"], horizontal=True, key="theme_radio")
+    # ── Appearance ───────────────────────────────────────────────────────────
+    st.markdown("<div class='section-header'>Appearance</div>", unsafe_allow_html=True)
+    theme_choice = st.radio(
+        "Theme",
+        ["Light", "Dark"],
+        horizontal=True,
+        key="theme_radio",
+        label_visibility="collapsed",
+    )
 
-    if theme_choice == "☀️ TailAdmin Light Dashboard":
-        st.markdown(
-            """
-            <style>
-            /* ── TailAdmin Light Theme Overrides ── */
-            .stApp {
-                background-color: #F8FAFC !important;
-                background-image: none !important;
-                color: #0F172A !important;
-            }
-
-            /* Streamlit Header Bar Transparent */
-            header[data-testid="stHeader"],
-            [data-testid="stHeader"] {
-                background-color: transparent !important;
-                background: transparent !important;
-                box-shadow: none !important;
-            }
-
-            /* Sidebar Light Mode Override */
-            [data-testid="stSidebar"] {
-                background-color: #FFFFFF !important;
-                background: #FFFFFF !important;
-                border-right: 1px solid #E2E8F0 !important;
-            }
-            [data-testid="stSidebar"] *,
-            [data-testid="stSidebar"] p,
-            [data-testid="stSidebar"] label,
-            [data-testid="stSidebar"] span,
-            [data-testid="stSidebar"] div,
-            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-                color: #0F172A !important;
-            }
-            [data-testid="stSidebar"] .section-header {
-                color: #1E3A8A !important;
-                border-bottom: 2px solid #E2E8F0 !important;
-            }
-
-            /* User Profile Card in Light Mode */
-            .user-profile-card {
-                background: #FFFFFF !important;
-                border: 1px solid #CBD5E1 !important;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
-                border-radius: 14px !important;
-                padding: 16px 14px !important;
-                margin-bottom: 14px !important;
-                color: #0F172A !important;
-            }
-            .user-profile-card *, .user-profile-card div {
-                color: #0F172A !important;
-            }
-
-            /* Hero Header Card */
-            .hero-header {
-                background: #FFFFFF !important;
-                border: 1px solid #E2E8F0 !important;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
-                color: #0F172A !important;
-            }
-            .hero-header h1 {
-                color: #0F172A !important;
-                background: none !important;
-                -webkit-text-fill-color: #0F172A !important;
-            }
-            .hero-header p, .hero-header span, .hero-header div {
-                color: #475569 !important;
-            }
-
-            /* Remove Red Underline from Tabs */
-            div[data-baseweb="tab-highlight"], 
-            div[data-baseweb="tab-border"],
-            [data-testid="stTab"] div[data-baseweb="tab-highlight"],
-            button[role="tab"] + div,
-            .stTabs [data-baseweb="tab-highlight"] {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-                height: 0px !important;
-                width: 0px !important;
-                background: transparent !important;
-                background-color: transparent !important;
-                border: none !important;
-            }
-
-            /* Tab Overflow Chevron Scroll Buttons in Light Mode */
-            .stTabs button[aria-label="Previous tab"],
-            .stTabs button[aria-label="Next tab"],
-            div[data-baseweb="tab-list"] > button {
-                background-color: #FFFFFF !important;
-                background: #FFFFFF !important;
-                color: #2563EB !important;
-                border: 1px solid #CBD5E1 !important;
-                border-radius: 8px !important;
-            }
-
-            /* Navigation Pills in Light Mode */
-            div[data-testid="stRadio"] [role="radiogroup"] label {
-                background: #F1F5F9 !important;
-                color: #475569 !important;
-                border: 1px solid #CBD5E1 !important;
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
-            }
-            div[data-testid="stRadio"] [role="radiogroup"] label p,
-            div[data-testid="stRadio"] [role="radiogroup"] label span {
-                color: #475569 !important;
-                font-weight: 700 !important;
-                font-size: 11.5px !important;
-                margin: 0 !important;
-                white-space: nowrap !important;
-            }
-
-            div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-                background: #E2E8F0 !important;
-                border-color: #2563EB !important;
-                transform: translateY(-1px) !important;
-            }
-            div[data-testid="stRadio"] [role="radiogroup"] label:hover p,
-            div[data-testid="stRadio"] [role="radiogroup"] label:hover span {
-                color: #1E3A8A !important;
-            }
-
-            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-                background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
-                border-color: #1D4ED8 !important;
-                box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
-            }
-            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
-            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span {
-                color: #FFFFFF !important;
-            }
-
-            /* Section Headers in Light Mode */
-            .section-header {
-                color: #1E3A8A !important;
-                border-bottom: 2px solid #E2E8F0 !important;
-                font-weight: 800 !important;
-            }
-
-            /* Cards & Content Containers in Light Mode */
-            .placeholder-card, .hero-signal-card, .metric-card, .ai-box {
-                background: #FFFFFF !important;
-                border: 1px solid #E2E8F0 !important;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04) !important;
-                color: #0F172A !important;
-                transition: all 0.25s ease !important;
-            }
-            .placeholder-card:hover, .hero-signal-card:hover, .metric-card:hover, .ai-box:hover {
-                border-color: #2563EB !important;
-                box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12) !important;
-                transform: translateY(-2px) !important;
-            }
-            .placeholder-card *, .hero-signal-card *, .metric-card *, .ai-box * {
-                color: #0F172A !important;
-            }
-            .metric-label {
-                color: #64748B !important;
-                font-weight: 700 !important;
-            }
-
-            /* Streamlit Buttons in Light Mode */
-            .stButton > button {
-                background-color: #FFFFFF !important;
-                color: #0F172A !important;
-                border: 1px solid #CBD5E1 !important;
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
-                font-weight: 700 !important;
-            }
-            .stButton > button:hover {
-                background-color: #F1F5F9 !important;
-                color: #1E3A8A !important;
-                border-color: #2563EB !important;
-                transform: translateY(-1px) !important;
-            }
-            .stButton > button[kind="primary"] {
-                background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
-                color: #FFFFFF !important;
-                border: 1px solid #1D4ED8 !important;
-                box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
-            }
-            .stButton > button[kind="primary"]:hover {
-                background: linear-gradient(135deg, #1D4ED8, #1E40AF) !important;
-                box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45) !important;
-            }
-            .stButton > button[kind="primary"] * {
-                color: #FFFFFF !important;
-            }
-
-            /* Streamlit Alert Boxes in Light Mode */
-            div[data-testid="stAlert"] {
-                background-color: #EFF6FF !important;
-                border: 1px solid #BFDBFE !important;
-                color: #1E40AF !important;
-                border-radius: 12px !important;
-            }
-            div[data-testid="stAlert"] * {
-                color: #1E40AF !important;
-            }
-
-            /* Inputs & Selectboxes in Light Mode */
-            div[data-baseweb="select"] > div, 
-            div[data-baseweb="input"] > div,
-            div[data-baseweb="base-input"] {
-                background-color: #FFFFFF !important;
-                border-color: #CBD5E1 !important;
-                color: #0F172A !important;
-            }
-            div[data-baseweb="select"] span,
-            div[data-baseweb="input"] input,
-            input, select, textarea {
-                color: #0F172A !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            """
-            <style>
-            /* ── Institutional Dark Theme Restoration ── */
-            .stApp {
-                background: #090d14 !important;
-                background-image: 
-                    radial-gradient(circle at 50% 0%, rgba(31, 111, 235, 0.12) 0%, transparent 60%),
-                    radial-gradient(rgba(56, 139, 253, 0.04) 1px, transparent 0) !important;
-                background-size: 100% 100%, 28px 28px !important;
-                color: #f0f6fc !important;
-            }
-
-            /* Streamlit Header Bar Transparent */
-            header[data-testid="stHeader"],
-            [data-testid="stHeader"] {
-                background-color: transparent !important;
-                background: transparent !important;
-                box-shadow: none !important;
-            }
-
-            /* Sidebar Dark Mode */
-            [data-testid="stSidebar"] {
-                background-color: #0b0e14 !important;
-                background: #0b0e14 !important;
-                border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-            }
-            [data-testid="stSidebar"] *,
-            [data-testid="stSidebar"] p,
-            [data-testid="stSidebar"] label,
-            [data-testid="stSidebar"] span,
-            [data-testid="stSidebar"] div,
-            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-                color: #c9d1d9 !important;
-            }
-            [data-testid="stSidebar"] .section-header {
-                color: #58a6ff !important;
-                border-bottom: 1px solid rgba(88, 166, 255, 0.15) !important;
-            }
-
-            /* User Profile Card in Dark Mode */
-            .user-profile-card {
-                background: linear-gradient(145deg, rgba(22,27,34,0.9), rgba(13,17,23,0.95)) !important;
-                border: 1px solid rgba(88,166,255,0.2) !important;
-                box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
-                border-radius: 14px !important;
-                padding: 16px 14px !important;
-                margin-bottom: 14px !important;
-                color: #f0f6fc !important;
-            }
-            .user-profile-card *, .user-profile-card div {
-                color: #f0f6fc !important;
-            }
-
-            /* Hero Header Card */
-            .hero-header {
-                background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.85) 100%) !important;
-                border: 1px solid rgba(88, 166, 255, 0.2) !important;
-                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
-                color: #f0f6fc !important;
-            }
-            .hero-header h1 {
-                color: #f0f6fc !important;
-                background: linear-gradient(90deg, #58a6ff, #00e5ff, #79c0ff) !important;
-                -webkit-background-clip: text !important;
-                -webkit-text-fill-color: transparent !important;
-            }
-            .hero-header p, .hero-header span, .hero-header div {
-                color: #8b949e !important;
-            }
-
-            /* Navigation Pills in Dark Mode */
-            div[data-testid="stRadio"] [role="radiogroup"] label {
-                background: rgba(22, 27, 34, 0.8) !important;
-                color: #8b949e !important;
-                border: 1px solid rgba(255, 255, 255, 0.1) !important;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-            }
-            div[data-testid="stRadio"] [role="radiogroup"] label p,
-            div[data-testid="stRadio"] [role="radiogroup"] label span {
-                color: #8b949e !important;
-                font-weight: 700 !important;
-                font-size: 11.5px !important;
-                margin: 0 !important;
-                white-space: nowrap !important;
-            }
-
-            div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-                background: rgba(31, 111, 235, 0.25) !important;
-                border-color: rgba(88, 166, 255, 0.4) !important;
-                transform: translateY(-1px) !important;
-            }
-            div[data-testid="stRadio"] [role="radiogroup"] label:hover p,
-            div[data-testid="stRadio"] [role="radiogroup"] label:hover span {
-                color: #58a6ff !important;
-            }
-
-            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-                background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%) !important;
-                border-color: #388bfd !important;
-                box-shadow: 0 4px 16px rgba(31, 111, 235, 0.45) !important;
-            }
-            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
-            div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span {
-                color: #FFFFFF !important;
-            }
-
-
-
-            /* Section Headers in Dark Mode */
-            .section-header {
-                color: #58a6ff !important;
-                border-bottom: 1px solid rgba(88, 166, 255, 0.15) !important;
-                font-weight: 700 !important;
-            }
-
-            /* Cards & Content Containers in Dark Mode */
-            .placeholder-card, .hero-signal-card, .metric-card, .ai-box {
-                background: linear-gradient(145deg, rgba(13, 20, 32, 0.9), rgba(9, 13, 20, 0.98)) !important;
-                border: 1px solid rgba(88, 166, 255, 0.2) !important;
-                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
-                color: #f0f6fc !important;
-                transition: all 0.25s ease !important;
-            }
-            .placeholder-card:hover, .hero-signal-card:hover, .metric-card:hover, .ai-box:hover {
-                border-color: rgba(88, 166, 255, 0.45) !important;
-                box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 18px rgba(88, 166, 255, 0.18) !important;
-                transform: translateY(-2px) !important;
-            }
-            .placeholder-card *, .hero-signal-card *, .metric-card *, .ai-box * {
-                color: #f0f6fc !important;
-            }
-            .metric-label {
-                color: #8b949e !important;
-                font-weight: 700 !important;
-            }
-
-            /* Buttons in Dark Mode */
-            .stButton > button {
-                background-color: rgba(22, 27, 34, 0.8) !important;
-                color: #c9d1d9 !important;
-                border: 1px solid rgba(255, 255, 255, 0.12) !important;
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
-                font-weight: 600 !important;
-            }
-            .stButton > button:hover {
-                background-color: rgba(56, 139, 253, 0.2) !important;
-                color: #58a6ff !important;
-                border-color: rgba(88, 166, 255, 0.4) !important;
-                transform: translateY(-1px) !important;
-            }
-            .stButton > button[kind="primary"] {
-                background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important;
-                color: #ffffff !important;
-                border: 1px solid #3fb950 !important;
-                box-shadow: 0 4px 16px rgba(46, 160, 67, 0.3) !important;
-            }
-            .stButton > button[kind="primary"] * {
-                color: #ffffff !important;
-            }
-
-            /* Inputs & Selectboxes in Dark Mode */
-            div[data-baseweb="select"] > div, 
-            div[data-baseweb="input"] > div,
-            div[data-baseweb="base-input"] {
-                background-color: rgba(13, 17, 23, 0.7) !important;
-                border-color: rgba(88, 166, 255, 0.2) !important;
-                color: #f0f6fc !important;
-            }
-            div[data-baseweb="select"] span,
-            div[data-baseweb="input"] input,
-            input, select, textarea {
-                color: #f0f6fc !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
+    # Light is the baseline stylesheet at module scope; dark only re-points the
+    # tokens, so both themes share identical geometry and spacing.
+    if theme_choice == "Dark":
+        st.markdown(CONTROL_PANEL_DARK_CSS, unsafe_allow_html=True)
 
 
 
@@ -813,11 +709,11 @@ with st.sidebar:
 
 
     # ── Stock Selection ──────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>STOCK SELECTION</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>Instrument</div>", unsafe_allow_html=True)
 
-    # Build symbol→name mapping for display
+    # Build symbolname mapping for display
     all_stocks = ALL_STOCKS
-    symbol_map = {s["symbol"]: f"{s['name']} ({s['symbol']})" for s in all_stocks}
+    symbol_map = {s["symbol"]: f"{s['name']} ({s['symbol']})"for s in all_stocks}
 
 
     search_input = st.text_input(
@@ -843,7 +739,7 @@ with st.sidebar:
     st.divider()
 
     # ── Timeframe ────────────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>TIMEFRAME & PERIOD</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>Timeframe</div>", unsafe_allow_html=True)
     interval_label = st.selectbox("Interval", list(SUPPORTED_INTERVALS.keys()), index=0)
     interval = SUPPORTED_INTERVALS[interval_label]
 
@@ -875,7 +771,7 @@ with st.sidebar:
     st.divider()
 
     # ── Indicators Toggle ────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>TECHNICAL OVERLAYS</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>Chart overlays</div>", unsafe_allow_html=True)
     show_ema = st.checkbox("EMA (20/50/200)", value=True)
     show_supertrend = st.checkbox("Supertrend", value=True)
     show_bollinger = st.checkbox("Bollinger Bands", value=True)
@@ -887,7 +783,7 @@ with st.sidebar:
     st.divider()
 
     # ── Risk Settings ────────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>RISK PARAMETERS</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>Risk parameters</div>", unsafe_allow_html=True)
     capital = st.number_input(
         "Capital (₹)",
         min_value=10_000,
@@ -901,29 +797,51 @@ with st.sidebar:
     st.divider()
 
     # ── Auto Refresh ─────────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>AUTO REFRESH ENGINE</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>Auto refresh</div>", unsafe_allow_html=True)
     auto_refresh = st.toggle("Enable Auto Refresh", value=False)
     if auto_refresh:
         refresh_interval = st.slider("Refresh every (seconds)", 30, 600, 60, 30)
 
     # ── Load Button ──────────────────────────────────────────────────────────
     st.divider()
-    load_clicked = st.button("RUN QUANT ANALYSIS", type="primary", use_container_width=True)
+    load_clicked = st.button("Run analysis", type="primary", use_container_width=True)
 
     # ── Alerts Config ────────────────────────────────────────────────────────
     with st.expander("Alert Channels & Notifications"):
+        # Never pre-fill a secret with value=os.getenv(...). Streamlit
+        # serialises the widget value to the browser even for type="password",
+        # so on any shared deployment that hands the server's own bot token and
+        # API keys to every visitor. Show only whether a server key exists.
+        server_tg_configured = bool(os.getenv("TELEGRAM_BOT_TOKEN"))
+        server_email_configured = bool(os.getenv("EMAIL_PASSWORD"))
 
-        tg_token = st.text_input("Telegram Bot Token", type="password", value=os.getenv("TELEGRAM_BOT_TOKEN", ""))
+        if server_tg_configured:
+            st.caption("Telegram: using the bot token from the server environment.")
+        tg_token = st.text_input(
+            "Telegram Bot Token",
+            type="password",
+            value="",
+            placeholder="Leave blank to use the server's token"if server_tg_configured else "",
+            help="Stored only for this browser session.",
+        )
         tg_chat = st.text_input("Telegram Chat ID", value=os.getenv("TELEGRAM_CHAT_ID", ""))
+
+        if server_email_configured:
+            st.caption("Email: using the SMTP password from the server environment.")
         email_from = st.text_input("Email (From)", value=os.getenv("EMAIL_SENDER", ""))
-        email_pass = st.text_input("Email Password", type="password")
+        email_pass = st.text_input(
+            "Email Password",
+            type="password",
+            value="",
+            placeholder="Leave blank to use the server's password"if server_email_configured else "",
+        )
         email_to = st.text_input("Email (To)", value=os.getenv("EMAIL_RECEIVER", ""))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HELPER: Load & Analyse
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _find_better_alternatives(current_symbol: str, current_confidence: float) -> tuple[str, list[dict]]:
+def _find_better_alternatives(current_symbol: str, current_confidence: float) ->tuple[str, list[dict]]:
     """Scan sector/category peer stocks for higher confidence or stronger signals."""
     sector_name, peer_pool = get_sector_peers(current_symbol)
     better_list = []
@@ -939,7 +857,7 @@ def _find_better_alternatives(current_symbol: str, current_confidence: float) ->
             res = generate_signal(sym, d)
             if res.confidence >= current_confidence or (res.signal in ("Strong Buy", "Buy") and res.confidence >= 60):
                 last_p = d["Close"].iloc[-1]
-                prev_p = d["Close"].iloc[-2] if len(d) > 1 else last_p
+                prev_p = d["Close"].iloc[-2] if len(d) >1 else last_p
                 chg = pct_change(float(prev_p), float(last_p))
                 better_list.append({
                     "symbol": sym,
@@ -957,7 +875,7 @@ def _find_better_alternatives(current_symbol: str, current_confidence: float) ->
     return sector_name, better_list[:3]
 
 
-def load_and_analyse(symbol: str) -> None:
+def load_and_analyse(symbol: str) ->None:
     """Fetch data and run full signal analysis, store in session state."""
     with st.spinner(f"Fetching & Analysing {symbol}…"):
         try:
@@ -970,29 +888,50 @@ def load_and_analyse(symbol: str) -> None:
             result = generate_signal(symbol, df)
             risk = calculate_risk(df, result.signal, capital=capital, risk_per_trade=risk_pct / 100)
 
-            # Get full official company name
-            comp_name = get_stock_name(symbol)
+            # These four are all network-bound and independent of each other.
+            # Run them concurrently rather than in series — sequentially they
+            # were the bulk of a 20-40 second wait.
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                f_name = pool.submit(get_stock_name, symbol)
+                f_mtf = pool.submit(compute_mtf_alignment, symbol)
+                f_inst = pool.submit(fetch_accumulation_proxy, symbol, df)
 
-            # 1. Multi-Timeframe (MTF) Alignment Analysis
-            mtf_res = compute_mtf_alignment(symbol)
+                comp_name = f_name.result()
+                f_news = pool.submit(fetch_news_sentiment, symbol, comp_name)
+
+                mtf_res = f_mtf.result()
+                inst_res = f_inst.result()
+                news_res = f_news.result()
+
+            # 1. Multi-Timeframe (MTF) alignment.
+            # Route the adjustment through apply_confidence_modifier so the
+            # label is re-derived. Moving confidence without re-labelling is
+            # how the header ends up reading "Buy — 82%".
             result.mtf_result = mtf_res
-            # Apply MTF confidence modifier
-            result.confidence = max(0.0, min(100.0, result.confidence + mtf_res.confidence_modifier))
+            apply_confidence_modifier(
+                result,
+                mtf_res.confidence_modifier,
+                "Multi-timeframe alignment",
+                f"({mtf_res.alignment_status})",
+            )
 
-            # 2. Institutional Ownership & FII/MF Money Flows
-            inst_res = fetch_institutional_flows(symbol, df)
+            # 2. Accumulation proxy — price/volume only, never fed back into
+            #    the score. The old +5 bonus was driven by a momentum number
+            #    that the momentum indicators had already counted.
             result.inst_result = inst_res
-            if inst_res.mf_net_change_pct > 0 and inst_res.fii_net_change_pct > 0:
-                result.confidence = max(0.0, min(100.0, result.confidence + 5.0))
 
-            # 3. Market Sentiment & News Intelligence
-            news_res = fetch_news_sentiment(symbol, comp_name)
+            # 3. Market sentiment & news (display only).
             result.news_result = news_res
 
-            # 4. Quantitative Risk & Monte Carlo Simulation
-            mc_res = run_monte_carlo_simulation(df, risk.entry_price, risk.stop_loss, risk.take_profit)
+            # 4. Quantitative risk & Monte Carlo simulation.
+            mc_res = run_monte_carlo_simulation(
+                df,
+                risk.entry_price,
+                risk.stop_loss,
+                risk.take_profit,
+                direction=risk.direction,
+            )
             result.mc_result = mc_res
-
 
             # Find better sector/category alternatives
             sector_category, alternatives = _find_better_alternatives(symbol, result.confidence)
@@ -1035,7 +974,7 @@ def load_and_analyse(symbol: str) -> None:
             logger.info("Analysis complete for %s (%s): %s", symbol, comp_name, result.signal)
 
         except Exception as exc:
-            st.error(f"❌ Error loading {symbol}: {exc}")
+            st.error(f"Error loading {symbol}: {exc}")
             logger.exception("load_and_analyse failed for %s", symbol)
 
 
@@ -1044,7 +983,7 @@ def load_and_analyse(symbol: str) -> None:
 # Auto-refresh logic
 if auto_refresh:
     elapsed = time.time() - st.session_state.last_refresh
-    if elapsed > refresh_interval:
+    if elapsed >refresh_interval:
         load_and_analyse(selected_symbol)
 
 # Trigger on button click
@@ -1059,18 +998,13 @@ st.markdown(
     f"""
     <div class="hero-header">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-            <div style="display:flex; align-items:center; gap:18px;">
-                <div style="background:linear-gradient(135deg,#1f6feb,#58a6ff); width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow:0 8px 24px rgba(31,111,235,0.4);">📈</div>
-                <div>
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <h1 style="margin:0; font-size:28px; font-weight:800; background:linear-gradient(90deg,#58a6ff,#00e5ff,#79c0ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:-0.02em;">{APP_NAME} <span style="font-size:13px; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(88,166,255,0.12); color:#58a6ff; border:1px solid rgba(88,166,255,0.25); -webkit-text-fill-color:initial;">PRO TERMINAL</span></h1>
-                    </div>
-                    <p style="margin:4px 0 0; color:#8b949e; font-size:13.5px; font-weight:500;">{APP_TAGLINE}</p>
-                </div>
+            <div style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;">
+                <span style="font-size:19px; font-weight:800; letter-spacing:-0.02em; color:var(--ink);">{APP_NAME}</span>
+                <span style="font-size:13.5px; color:var(--ink-2); font-weight:500;">{APP_TAGLINE}</span>
             </div>
-            <div style="display:flex; align-items:center; gap:14px;">
-                <div class="live-indicator"><span class="pulsing-dot"></span> LIVE NSE / BSE</div>
-                <div class="mono-font" style="font-size:12px; color:#8b949e; background:rgba(255,255,255,0.04); padding:6px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.06);">v{APP_VERSION}</div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="live-indicator"><span class="pulsing-dot"></span>NSE / BSE</div>
+                <span class="mono-font" style="font-size:11.5px; color:var(--ink-3);">v{APP_VERSION}</span>
             </div>
         </div>
     </div>
@@ -1083,12 +1017,12 @@ st.markdown(
 # HELPER — AI Explanation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _generate_ai_explanation(result, risk) -> str:
+def _generate_ai_explanation(result, risk) ->str:
     """
     Generate a natural-language trade explanation.
     Uses OpenAI API if configured, otherwise generates a rule-based explanation.
     """
-    sig_emoji = SIGNAL_EMOJI.get(result.signal, "📊")
+    sig_emoji = SIGNAL_EMOJI.get(result.signal, "")
 
     # Try OpenAI API
     if OPENAI_API_KEY:
@@ -1116,8 +1050,8 @@ def _generate_ai_explanation(result, risk) -> str:
 
     # Rule-based fallback
     trend = (
-        "bullish" if result.signal in ("Strong Buy", "Buy")
-        else "bearish" if result.signal in ("Sell", "Strong Sell")
+        "bullish"if result.signal in ("Strong Buy", "Buy")
+        else "bearish"if result.signal in ("Sell", "Strong Sell")
         else "neutral"
     )
     lines = [
@@ -1126,14 +1060,18 @@ def _generate_ai_explanation(result, risk) -> str:
     ]
     for r in result.reasons[:4]:
         lines.append(f"{r}. ")
+    # On a short the stop sits ABOVE entry and the target below, so the
+    # direction words have to follow the trade, not be hardcoded to "below".
+    stop_side = "below"if risk.stop_loss < risk.entry_price else "above"
+    target_side = "above"if risk.take_profit >risk.entry_price else "below"
     lines.append(
         f"<br><br><b>Risk Management:</b> Entry at <b>₹{risk.entry_price:,.2f}</b>, "
-        f"stop loss at <b>₹{risk.stop_loss:,.2f}</b> ({risk.stop_pct:.1f}% below entry), "
-        f"and target at <b>₹{risk.take_profit:,.2f}</b> gives a risk-to-reward ratio of "
-        f"<b>1:{risk.risk_reward:.1f}</b>. "
+        f"stop loss at <b>₹{risk.stop_loss:,.2f}</b>({risk.stop_pct:.1f}% {stop_side} entry), "
+        f"and target at <b>₹{risk.take_profit:,.2f}</b>({target_side} entry) gives a "
+        f"risk-to-reward ratio of <b>1:{risk.risk_reward:.1f}</b>. "
     )
     lines.append(
-        "<br><br><i>⚠️ This analysis is for educational purposes only. "
+        "<br><br><i>This analysis is for educational purposes only. "
         "Always manage your risk and trade responsibly.</i>"
     )
     return "".join(lines)
@@ -1146,14 +1084,14 @@ def _generate_ai_explanation(result, risk) -> str:
 active_tab = st.radio(
     "Navigation Menu",
     [
-        "SIGNAL TERMINAL",
-        "TECHNICAL ANALYSIS",
-        "QUANT BACKTEST",
-        "MARKET SCANNER",
-        "SECTOR & INDUSTRY PERFORMANCE",
-        "WATCHLIST & AUDIT LOGS",
-        "INSTITUTIONAL RESEARCH",
-        "ALERT MANAGER",
+        "Signal",
+        "Technical",
+        "Backtest",
+        "Scanner",
+        "Sectors",
+        "Watchlist",
+        "Research",
+        "Alerts",
     ],
     horizontal=True,
     label_visibility="collapsed",
@@ -1167,14 +1105,14 @@ active_tab = st.radio(
 # SECTION 1 — SIGNAL TERMINAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if active_tab == "SIGNAL TERMINAL":
+if active_tab == "Signal":
 
     if st.session_state.signal_result is None:
         st.markdown(
             """
-            <div class="placeholder-card" style="text-align:center; padding:70px 20px; max-width:650px; margin:30px auto; border-radius:18px;">
+            <div class="placeholder-card"style="text-align:center; padding:70px 20px; max-width:650px; margin:30px auto; border-radius:18px;">
                 <div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; background:rgba(56,139,253,0.12); border:1px solid rgba(56,139,253,0.3); border-radius:16px; margin-bottom:18px;">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    <svg width="32"height="32"viewBox="0 0 24 24"fill="none"stroke="var(--accent)"stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
                 </div>
                 <h2 style="font-size:22px; font-weight:800; margin:0 0 8px 0; letter-spacing:-0.01em;">QUANTITATIVE SIGNAL TERMINAL</h2>
                 <p style="font-size:13.5px; line-height:1.6; margin:0;">
@@ -1191,39 +1129,70 @@ if active_tab == "SIGNAL TERMINAL":
         risk = st.session_state.risk
         df = st.session_state.df
         last = df.iloc[-1]
-        prev = df.iloc[-2] if len(df) > 1 else last
+        prev = df.iloc[-2] if len(df) >1 else last
 
-        sig_color = SIGNAL_COLORS.get(result.signal, "#9e9e9e")
-        sig_emoji = SIGNAL_EMOJI.get(result.signal, "📊")
+        sig_color = color_for_signal(result.signal)
+        sig_emoji = SIGNAL_EMOJI.get(result.signal, "")
         price_change = pct_change(float(prev["Close"]), float(last["Close"]))
 
         comp_display = st.session_state.get("company_name", result.symbol)
         # ── Top Signal Card ─────────────────────────────────────────────────
         # ── Top Signal Card ─────────────────────────────────────────────────
-        change_bg = 'rgba(0,230,118,0.15)' if price_change >= 0 else 'rgba(255,23,68,0.15)'
-        change_fg = '#00e676' if price_change >= 0 else '#ff1744'
-        change_border = 'rgba(0,230,118,0.3)' if price_change >= 0 else 'rgba(255,23,68,0.3)'
-        arrow = '▲' if price_change >= 0 else '▼'
+        change_bg = 'rgba(0,230,118,0.15)'if price_change >= 0 else 'rgba(255,23,68,0.15)'
+        change_fg = 'var(--pos)' if price_change >= 0 else 'var(--neg)'
+        change_border = 'var(--border)'
+        # Direction is carried by an explicit sign, not a triangle glyph — the
+        # sign reads in any font and copies as text.
+        arrow = '+' if price_change >= 0 else '−'
 
         mcap_badge_html = ""
-        if hasattr(result, "inst_result") and result.inst_result:
+        if getattr(result, "inst_result", None):
             inst_data = result.inst_result
-            mcap_badge_html = f'<span class="mono-font" style="font-size:12px; font-weight:700; color:{inst_data.mcap_badge_color}; background:{inst_data.mcap_badge_color}22; padding:3px 10px; border-radius:12px; border:1px solid {inst_data.mcap_badge_color}44;">{inst_data.mcap_category} (₹{inst_data.mcap_cr:,.0f} Cr)</span>'
+            # mcap_cr is None when the source has no market cap for the ticker;
+            # it is no longer defaulted to an invented figure.
+            mcap_text = (
+                f"{inst_data.mcap_category} (₹{inst_data.mcap_cr:,.0f} Cr)"
+                if inst_data.mcap_cr is not None
+                else inst_data.mcap_category
+            )
+            # Neutral chip. Market-cap tier is a category, not a buy/sell state,
+            # so it does not earn colour — and the old `{token}22` alpha suffix
+            # produced invalid CSS once colours became custom properties.
+            mcap_badge_html = (
+                f'<span class="mono-font" style="font-size:11px; font-weight:500; '
+                f'color:var(--ink-2); background:var(--panel-alt); '
+                f'padding:3px 8px; border-radius:5px;">{html.escape(mcap_text)}</span>'
+            )
 
         st.markdown(
-            f"""<div class="hero-signal-card" style="border: 1px solid {sig_color}55; box-shadow: 0 20px 60px -10px {sig_color}25;">
-<div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 16px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); margin-bottom:12px; flex-wrap:wrap; justify-content:center;">
-<span style="font-size:18px;">{sig_emoji}</span>
-<span class="mono-font" style="font-size:13px; font-weight:700; color:#8b949e; letter-spacing:0.08em; text-transform:uppercase;">{result.symbol} • EQUITIES</span>
+            f"""<div class="hero-signal-card">
+<div style="display:grid; grid-template-columns:1fr 300px; gap:36px; align-items:center;">
+<div style="display:flex; flex-direction:column; gap:11px; min-width:0;">
+<div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
+<span style="font-size:21px; font-weight:700; letter-spacing:-0.02em; color:var(--ink);">{comp_display}</span>
+<span class="mono-font" style="font-size:11px; font-weight:500; color:var(--ink-2); background:var(--panel-alt); padding:3px 8px; border-radius:5px;">{result.symbol}</span>
 {mcap_badge_html}
-<span class="mono-font" style="font-size:12px; font-weight:700; color:#58a6ff; background:rgba(88,166,255,0.12); padding:3px 10px; border-radius:12px; border:1px solid rgba(88,166,255,0.25);">⏳ Signal Active: {result.signal_age_days} Days</span>
 </div>
-<div style="font-size:24px; font-weight:800; color:#f0f6fc; margin-bottom:8px;">{comp_display}</div>
-<div style="font-size:42px; font-weight:800; color:{sig_color}; text-shadow:0 0 35px {sig_color}88; margin-bottom:10px; letter-spacing:-0.02em;">{result.signal}</div>
-<div class="mono-font" style="font-size:22px; color:#f0f6fc; font-weight:700; margin-bottom:20px;">₹{last['Close']:,.2f} <span style="font-size:15px; font-weight:600; padding:3px 10px; border-radius:8px; margin-left:8px; background:{change_bg}; color:{change_fg}; border:1px solid {change_border}">{arrow} {abs(price_change):.2f}%</span></div>
-<div style="font-size:12px; font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;">Signal Confidence Score</div>
-<div style="background:rgba(0,0,0,0.4); border-radius:10px; height:10px; width:65%; margin:0 auto 14px; padding:2px; border:1px solid rgba(255,255,255,0.06);"><div style="background:linear-gradient(90deg, {sig_color}bb, {sig_color}); height:100%; border-radius:8px; width:{result.confidence}%; box-shadow:0 0 12px {sig_color}aa;"></div></div>
-<div class="mono-font" style="font-size:30px; font-weight:800; color:{sig_color}; text-shadow:0 0 20px {sig_color}66;">{result.confidence:.1f}%</div>
+<div style="display:flex; align-items:baseline; gap:11px; flex-wrap:wrap;">
+<span class="mono-font" style="font-size:32px; font-weight:600; color:var(--ink);">₹{last['Close']:,.2f}</span>
+<span class="mono-font" style="font-size:14px; font-weight:600; color:{change_fg};">{arrow}{abs(price_change):.2f}%</span>
+</div>
+<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+<span style="font-size:13px; font-weight:700; color:#FFFFFF; background:{sig_color}; padding:5px 13px; border-radius:6px;">{result.signal.upper()}</span>
+<span style="font-size:12.5px; color:var(--ink-2);">held {result.signal_age_days} sessions &middot; {result.recommended_horizon.lower()}</span>
+</div>
+</div>
+<div style="display:flex; flex-direction:column; gap:8px;">
+<div style="display:flex; justify-content:space-between; align-items:baseline;">
+<span style="font-size:11px; font-weight:600; color:var(--ink-2);">Confidence</span>
+<span class="mono-font" style="font-size:26px; font-weight:600; color:{sig_color};">{result.confidence:.1f}%</span>
+</div>
+<div style="height:6px; background:var(--panel-alt); border-radius:3px; overflow:hidden;"><div style="width:{result.confidence}%; height:100%; background:{sig_color}; border-radius:3px;"></div></div>
+<div class="mono-font" style="display:flex; justify-content:space-between; font-size:10px; color:var(--ink-4);">
+<span>Strong sell 25</span><span>Hold 45</span><span>Buy 55</span>
+</div>
+</div>
+</div>
 </div>""",
             unsafe_allow_html=True,
         )
@@ -1234,21 +1203,21 @@ if active_tab == "SIGNAL TERMINAL":
         m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
 
         metrics = [
-            (m1, "Entry Price", f"₹{risk.entry_price:,.2f}", "#58a6ff"),
-            (m2, "Stop Loss", f"₹{risk.stop_loss:,.2f}", "#ff1744"),
-            (m3, "Take Profit", f"₹{risk.take_profit:,.2f}", "#00e676"),
-            (m4, "Risk:Reward", f"1:{risk.risk_reward:.1f}", "#ffb300"),
-            (m5, "Active Days", f"{result.signal_age_days} Days", "#00e5ff"),
-            (m6, "Horizon", f"{result.recommended_horizon}", "#ba68c8"),
-            (m7, "Max Position", f"{risk.max_position_size:,} shares", "#79c0ff"),
+            (m1, "Entry Price", f"₹{risk.entry_price:,.2f}", "var(--accent)"),
+            (m2, "Stop Loss", f"₹{risk.stop_loss:,.2f}", "var(--neg)"),
+            (m3, "Take Profit", f"₹{risk.take_profit:,.2f}", "var(--pos)"),
+            (m4, "Risk:Reward", f"1:{risk.risk_reward:.1f}", "var(--warn)"),
+            (m5, "Active Days", f"{result.signal_age_days} Days", "var(--accent)"),
+            (m6, "Horizon", f"{result.recommended_horizon}", "var(--accent)"),
+            (m7, "Max Position", f"{risk.max_position_size:,} shares", "var(--accent)"),
         ]
 
         for col, label, value, color in metrics:
             col.markdown(
                 f"""
-                <div class="metric-card" style="border-top: 3px solid {color};">
+                <div class="metric-card">
                     <div class="metric-label">{label}</div>
-                    <div class="metric-value" style="color:{color};">{value}</div>
+                    <div class="metric-value"style="color:{color};">{value}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1258,7 +1227,7 @@ if active_tab == "SIGNAL TERMINAL":
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ── Price Performance & Peak Risk Assessment ─────────────────────────
-        st.markdown('<div class="section-header">PRICE PERFORMANCE & PEAK RISK ASSESSMENT</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Price performance</div>', unsafe_allow_html=True)
 
         pct_1w = getattr(result, "pct_1w", 0.0)
         pct_2w = getattr(result, "pct_2w", 0.0)
@@ -1269,10 +1238,10 @@ if active_tab == "SIGNAL TERMINAL":
 
         p1, p2, p3, p4, p5 = st.columns(5)
 
-        color_1w = "#00e676" if pct_1w >= 0 else "#ff1744"
-        color_2w = "#00e676" if pct_2w >= 0 else "#ff1744"
-        color_1m = "#00e676" if pct_1m >= 0 else "#ff1744"
-        color_52w = "#ffb300" if dist_52w_high <= 3.0 else "#58a6ff"
+        color_1w = "var(--pos)"if pct_1w >= 0 else "var(--neg)"
+        color_2w = "var(--pos)"if pct_2w >= 0 else "var(--neg)"
+        color_1m = "var(--pos)"if pct_1m >= 0 else "var(--neg)"
+        color_52w = "var(--warn)"if dist_52w_high <= 3.0 else "var(--accent)"
 
         perf_metrics = [
             (p1, "1-Day Change", f"{price_change:+.2f}%", change_fg),
@@ -1285,23 +1254,23 @@ if active_tab == "SIGNAL TERMINAL":
         for col, label, value, color in perf_metrics:
             col.markdown(
                 f"""
-                <div class="metric-card" style="border-top: 3px solid {color};">
+                <div class="metric-card">
                     <div class="metric-label">{label}</div>
-                    <div class="metric-value" style="color:{color};">{value}</div>
+                    <div class="metric-value"style="color:{color};">{value}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
         if extended_warning:
-            alert_color = "#ff1744" if is_extended else "#ffb300"
-            alert_border = "rgba(255,23,68,0.4)" if is_extended else "rgba(255,179,0,0.4)"
-            alert_bg = "rgba(255,23,68,0.12)" if is_extended else "rgba(255,179,0,0.12)"
+            alert_color = "var(--neg)"if is_extended else "var(--warn)"
+            alert_border = "rgba(255,23,68,0.4)"if is_extended else "rgba(255,179,0,0.4)"
+            alert_bg = "rgba(255,23,68,0.12)"if is_extended else "rgba(255,179,0,0.12)"
             st.markdown(
                 f"""
                 <div style="background:{alert_bg}; border:1px solid {alert_border}; border-radius:12px; padding:12px 18px; margin-top:12px; margin-bottom:18px;">
                     <div style="font-size:13px; font-weight:600; color:{alert_color};">
-                        <strong>⚠️ Peak Risk Warning:</strong> {extended_warning}
+                        <strong>Peak Risk Warning:</strong>{extended_warning}
                     </div>
                 </div>
                 """,
@@ -1315,7 +1284,7 @@ if active_tab == "SIGNAL TERMINAL":
         # ── MTF Alignment Matrix Card ──────────────────────────────────────
         if hasattr(result, "mtf_result") and result.mtf_result:
             mtf = result.mtf_result
-            st.markdown('<div class="section-header">⏱️ Multi-Timeframe (MTF) Alignment Matrix</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Timeframe alignment</div>', unsafe_allow_html=True)
             tf_cols = st.columns(3)
             tf_data = [
                 (tf_cols[0], "1W Macro Trend", mtf.trends.get("1W")),
@@ -1324,12 +1293,12 @@ if active_tab == "SIGNAL TERMINAL":
             ]
             for col, title, item in tf_data:
                 if item:
-                    color = "#00e676" if item.trend == "Bullish" else "#ff1744" if item.trend == "Bearish" else "#8b949e"
+                    color = "var(--pos)"if item.trend == "Bullish"else "var(--neg)"if item.trend == "Bearish"else "var(--ink-2)"
                     col.markdown(
                         f"""
-                        <div class="metric-card" style="border-top: 3px solid {color}; text-align:center;">
+                        <div class="metric-card" style="text-align:center;">
                             <div class="metric-label">{title}</div>
-                            <div class="mono-font" style="font-size:18px; font-weight:700; color:{color}; margin-top:4px;">
+                            <div class="mono-font"style="font-size:18px; font-weight:700; color:{color}; margin-top:4px;">
                                 {item.trend.upper()}
                             </div>
                         </div>
@@ -1338,9 +1307,9 @@ if active_tab == "SIGNAL TERMINAL":
                     )
             st.markdown(
                 f"""
-                <div style="background:rgba(22,27,34,0.6); border:1px solid rgba(88,166,255,0.2); border-radius:12px; padding:12px 18px; margin-top:12px; font-size:13px; color:#c9d1d9; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                    <div><strong>Confluence Status:</strong> <span style="color:#58a6ff; font-weight:700;">{mtf.alignment_status}</span></div>
-                    <div style="color:#8b949e;">{mtf.description}</div>
+                <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 18px; margin-top:12px; font-size:13px; color:var(--ink-2); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div><strong>Confluence Status:</strong> <span style="color:var(--accent); font-weight:700;">{mtf.alignment_status}</span></div>
+                    <div style="color:var(--ink-2);">{mtf.description}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1349,69 +1318,57 @@ if active_tab == "SIGNAL TERMINAL":
         # ── Institutional Ownership & Money Flows (MFs & FIIs Separated) ──────
         if hasattr(result, "inst_result") and result.inst_result:
             inst = result.inst_result
-            st.markdown('<div class="section-header">🏛️ INSTITUTIONAL MONEY FLOWS & SHAREHOLDING</div>', unsafe_allow_html=True)
-            st.info(f"**Institutional Accumulation Confluence:** {inst.confluence_badge}")
+            st.markdown('<div class="section-header">Accumulation footprint</div>', unsafe_allow_html=True)
+            st.caption(inst.disclaimer)
 
-            mf_col, fii_col = st.columns(2)
+            ac1, ac2, ac3, ac4 = st.columns(4)
+            ac1.metric("Accumulation score", f"{inst.accumulation_score:+.0f}", help="-100 (distribution) to +100 (accumulation)")
+            ac2.metric("Up-day volume share", f"{inst.up_volume_share_pct:.0f}%")
+            ac3.metric("OBV trend", f"{inst.obv_slope_pct:+.1f}%")
+            ac4.metric(
+                "Market cap",
+                f"₹{inst.mcap_cr:,.0f} Cr"if inst.mcap_cr is not None else "N/A",
+                help=inst.mcap_category,
+            )
 
-            with mf_col:
-                st.markdown("##### 🏦 Mutual Funds (MFs / DIIs) Intelligence")
-                m1, m2 = st.columns(2)
-                m1.metric("MF Holding Stake", f"{inst.mf_dii_holding_pct:.1f}%")
-                m2.metric(
-                    "Est. 30D MF Net Flow",
-                    f"₹{inst.mf_est_flow_cr:+,.1f} Cr",
-                    delta=f"{inst.mf_net_change_pct:+.2f}% QoQ",
-                    delta_color="normal" if inst.mf_net_change_pct >= 0 else "inverse",
-                )
+            st.markdown(
+                f"<div style='padding:10px 14px;border-radius:8px;"
+                f"background:var(--panel-alt);border-left:3px solid {inst.accumulation_color};'>"
+                f"<strong style='color:{inst.accumulation_color};'>{html.escape(inst.accumulation_label)}</strong>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
-                if inst.mf_net_change_pct > 0:
-                    st.success(f"Status: {inst.mf_activity_status}")
-                elif inst.mf_net_change_pct < 0:
-                    st.error(f"Status: {inst.mf_activity_status}")
-                else:
-                    st.warning(f"Status: {inst.mf_activity_status}")
-
-                st.markdown(f"**Last 1 Month (30D):** `{inst.mf_1m_trend_label}`")
-                st.markdown(f"**Quarterly (QoQ):** `{inst.mf_qoq_trend_label}`")
-
-                with st.expander("📋 Major Mutual Fund Holders"):
-                    for holder in inst.top_mf_holders:
-                        st.markdown(f"- **{holder}**")
-
-            with fii_col:
-                st.markdown("##### 🌍 Foreign Institutional (FIIs / FPIs) Intelligence")
-                f1, f2 = st.columns(2)
-                f1.metric("FII Holding Stake", f"{inst.fii_holding_pct:.1f}%")
-                f2.metric(
-                    "Est. 30D FII Net Flow",
-                    f"₹{inst.fii_est_flow_cr:+,.1f} Cr",
-                    delta=f"{inst.fii_net_change_pct:+.2f}% QoQ",
-                    delta_color="normal" if inst.fii_net_change_pct >= 0 else "inverse",
-                )
-
-                if inst.fii_net_change_pct > 0:
-                    st.success(f"Status: {inst.fii_activity_status}")
-                elif inst.fii_net_change_pct < 0:
-                    st.error(f"Status: {inst.fii_activity_status}")
-                else:
-                    st.warning(f"Status: {inst.fii_activity_status}")
-
-                st.markdown(f"**Last 1 Month (30D):** `{inst.fii_1m_trend_label}`")
-                st.markdown(f"**Quarterly (QoQ):** `{inst.fii_qoq_trend_label}`")
-
-                with st.expander("📋 Major FII / FPI Institutional Holders"):
-                    for holder in inst.top_fii_holders:
-                        st.markdown(f"- **{holder}**")
-
+            if inst.evidence:
+                with st.expander("What this reading is based on"):
+                    for line in inst.evidence:
+                        st.markdown(f"- {line}")
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("##### 📊 Overall Shareholding Structure Breakdown")
-            sb1, sb2, sb3, sb4 = st.columns(4)
-            sb1.metric("Promoter Stake", f"{inst.promoter_holding_pct:.1f}%")
-            sb2.metric("Mutual Funds (DII)", f"{inst.mf_dii_holding_pct:.1f}%")
-            sb3.metric("FII / FPI Stake", f"{inst.fii_holding_pct:.1f}%")
-            sb4.metric("Retail / Public", f"{inst.public_holding_pct:.1f}%")
+            st.markdown("#####  Reported ownership")
+
+            if inst.ownership_available:
+                ob1, ob2 = st.columns(2)
+                ob1.metric(
+                    "Institutional (aggregate)",
+                    f"{inst.total_institutional_pct:.1f}%"
+                    if inst.total_institutional_pct is not None
+                    else "Not reported",
+                )
+                ob2.metric(
+                    "Insider / promoter",
+                    f"{inst.insider_pct:.1f}%"
+                    if inst.insider_pct is not None
+                    else "Not reported",
+                )
+                st.caption(inst.ownership_source)
+            else:
+                st.info(
+                    "No ownership data available for this ticker. Indian FII/DII/MF "
+                    "holdings come from BSE/NSE quarterly shareholding filings and "
+                    "AMFI monthly disclosures — this app does not fetch those, and "
+                    "Yahoo Finance does not carry the breakdown."
+                )
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1421,7 +1378,7 @@ if active_tab == "SIGNAL TERMINAL":
         col_l, col_r = st.columns([1, 1.4])
 
         with col_l:
-            st.markdown('<div class="section-header">📊 Indicator Breakdown</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Signal components</div>', unsafe_allow_html=True)
 
             # Indicator score bars
             indicator_names = {
@@ -1438,19 +1395,19 @@ if active_tab == "SIGNAL TERMINAL":
             for key, label in indicator_names.items():
                 raw = result.indicator_scores.get(key, 0)
                 weight = weights.get(key, 10)
-                pct = (raw / weight * 100) if weight > 0 else 50
+                pct = (raw / weight * 100) if weight >0 else 50
                 pct = max(0, min(100, pct))
-                bar_color = "#00e676" if pct >= 60 else "#ffd740" if pct >= 40 else "#f44336"
+                bar_color = "var(--pos)"if pct >= 60 else "var(--warn)"if pct >= 40 else "var(--neg)"
 
                 st.markdown(
                     f"""
                     <div style="margin-bottom:10px;">
                         <div style="display:flex;justify-content:space-between;
-                                    font-size:12px;color:#8b949e;margin-bottom:4px;">
+                                    font-size:12px;color:var(--ink-2);margin-bottom:4px;">
                             <span>{label}</span>
                             <span style="color:{bar_color}">{pct:.0f}%</span>
                         </div>
-                        <div style="background:rgba(255,255,255,0.05);border-radius:4px;height:6px;">
+                        <div style="background:var(--panel-alt);border-radius:4px;height:6px;">
                             <div style="background:{bar_color};width:{pct}%;height:6px;border-radius:4px;
                                         transition:width 0.4s ease;"></div>
                         </div>
@@ -1461,7 +1418,7 @@ if active_tab == "SIGNAL TERMINAL":
 
             # Last bar values
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown('<div class="section-header">📌 Last Bar Summary</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Last bar</div>', unsafe_allow_html=True)
             last_row = df.iloc[-1]
             summary_items = []
             for col_name, fmt in [
@@ -1481,17 +1438,17 @@ if active_tab == "SIGNAL TERMINAL":
                 st.markdown(
                     f"""
                     <div style="display:flex;justify-content:space-between;
-                                padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);
+                                padding:6px 0;border-bottom:1px solid var(--border);
                                 font-size:13px;">
-                        <span style="color:#8b949e;">{name}</span>
-                        <span style="color:#e6edf3;font-weight:500;">{val}</span>
+                        <span style="color:var(--ink-2);">{name}</span>
+                        <span style="color:var(--ink);font-weight:500;">{val}</span>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
         with col_r:
-            st.markdown('<div class="section-header">🤖 AI Trade Explanation</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Explanation</div>', unsafe_allow_html=True)
 
             # Generate AI explanation (rule-based fallback + optional LLM)
             ai_text = _generate_ai_explanation(result, risk)
@@ -1503,26 +1460,26 @@ if active_tab == "SIGNAL TERMINAL":
             # News Sentiment Section
             if hasattr(result, "news_result") and result.news_result:
                 news = result.news_result
-                s_color = "#00e676" if "Bullish" in news.sentiment_label else "#ff1744" if "Bearish" in news.sentiment_label else "#ffb300"
+                s_color = "var(--pos)"if "Bullish"in news.sentiment_label else "var(--neg)"if "Bearish"in news.sentiment_label else "var(--warn)"
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown(f'<div class="section-header">📰 News Sentiment Intelligence (<span style="color:{s_color}">{news.sentiment_label}</span>)</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="section-header">News sentiment (<span style="color:{s_color}">{news.sentiment_label}</span>)</div>', unsafe_allow_html=True)
                 for art in news.articles[:3]:
-                    art_color = "#00e676" if art.sentiment_label == "Bullish" else "#ff1744" if art.sentiment_label == "Bearish" else "#8b949e"
+                    art_color = "var(--pos)"if art.sentiment_label == "Bullish"else "var(--neg)"if art.sentiment_label == "Bearish"else "var(--ink-2)"
                     st.markdown(
                         f"""
-                        <div class="reason-card" style="border-left-color:{art_color}; font-size:12.5px;">
+                        <div class="reason-card"style="border-left-color:{art_color}; font-size:12.5px;">
                             <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
-                                <a href="{art.link}" target="_blank" style="color:#e6edf3; text-decoration:none; font-weight:600;">{art.title[:75]}…</a>
-                                <span style="color:{art_color}; font-weight:700; font-size:10px; padding:1px 6px; border-radius:6px; background:{art_color}22;">{art.sentiment_label}</span>
+                                <a href="{art.link}"target="_blank"style="color:var(--ink); text-decoration:none; font-weight:600;">{art.title[:75]}…</a>
+                                <span style="color:{art_color}; font-weight:700; font-size:10px; padding:1px 6px; border-radius:6px; background:var(--panel-alt);">{art.sentiment_label}</span>
                             </div>
-                            <div style="font-size:10px; color:#8b949e;">{art.published}</div>
+                            <div style="font-size:10px; color:var(--ink-2);">{art.published}</div>
                         </div>
                         """,
                         unsafe_allow_html=True,
                     )
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown('<div class="section-header">📋 Signal Reasons</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Why this signal</div>', unsafe_allow_html=True)
             for reason in result.reasons[:10]:
                 st.markdown(
                     f'<div class="reason-card">• {reason}</div>',
@@ -1532,7 +1489,7 @@ if active_tab == "SIGNAL TERMINAL":
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ── Risk Card & Monte Carlo Simulation ───────────────────────────────
-        st.markdown('<div class="section-header">🛡️ Risk & Monte Carlo Quantitative Simulation (1,000 Iterations)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Monte Carlo simulation</div>', unsafe_allow_html=True)
         rc1, rc2, rc3, rc4 = st.columns(4)
         risk_metrics = [
             (rc1, "Capital Allocation", format_inr(risk.capital_allocation)),
@@ -1545,7 +1502,7 @@ if active_tab == "SIGNAL TERMINAL":
                 f"""
                 <div class="metric-card">
                     <div class="metric-label">{label}</div>
-                    <div class="metric-value" style="font-size:18px;">{val}</div>
+                    <div class="metric-value"style="font-size:18px;">{val}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1555,61 +1512,75 @@ if active_tab == "SIGNAL TERMINAL":
             mc = result.mc_result
             st.markdown("<br>", unsafe_allow_html=True)
             mc1, mc2, mc3, mc4 = st.columns(4)
-            mc_color = "#00e676" if mc.win_probability >= 55 else "#ff1744" if mc.win_probability <= 45 else "#ffb300"
+            mc_color = "var(--pos)"if mc.win_probability >= 55 else "var(--neg)"if mc.win_probability <= 45 else "var(--warn)"
+            pop_margin = getattr(mc, "pop_margin_pct", 0.0)
+            pop_text = f"{mc.win_probability:.1f}%"
+            if pop_margin:
+                pop_text += f" <span style='font-size:12px; opacity:.7;'>± {pop_margin:.1f}</span>"
+
             mc_items = [
-                (mc1, "Win Probability (PoP)", f"{mc.win_probability:.1f}%", mc_color),
-                (mc2, "Expected Value (EV)", f"₹{mc.expected_value:,.2f}", "#58a6ff"),
-                (mc3, "Value at Risk (95%)", f"₹{mc.var_95:,.2f}", "#ff1744"),
-                (mc4, "20-Day Target (P50)", f"₹{mc.median_price:,.2f}", "#00e5ff"),
+                (mc1, "Win Probability (PoP)", pop_text, mc_color),
+                (mc2, "Expected Value (EV)", f"₹{mc.expected_value:,.2f}", "var(--accent)"),
+                (mc3, "Value at Risk (95%)", f"₹{mc.var_95:,.2f}", "var(--neg)"),
+                (mc4, "20-Day Target (P50)", f"₹{mc.median_price:,.2f}", "var(--accent)"),
             ]
             for col, label, val, c in mc_items:
                 col.markdown(
                     f"""
-                    <div class="metric-card" style="border-top: 3px solid {c};">
+                    <div class="metric-card">
                         <div class="metric-label">{label}</div>
-                        <div class="metric-value" style="font-size:18px; color:{c};">{val}</div>
+                        <div class="metric-value"style="font-size:18px; color:{c};">{val}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
+            # Say what the number is and is not. PoP is an estimate from a
+            # finite sample, and the drift assumption changes what it means.
+            st.caption(
+                f"{mc.num_simulations:,} simulated paths over {mc.horizon_days} trading days. "
+                f"The ± on PoP is the 95% sampling margin. {mc.drift_note} "
+                "Paths are checked at daily closes, so a stop touched intraday and "
+                "recovered by the close is not counted."
+            )
+
         st.markdown("<br>", unsafe_allow_html=True)
 
 
         # ── Better Stock Alternatives ──────────────────────────────────────────
-        if "better_alternatives" in st.session_state and st.session_state.better_alternatives:
+        if "better_alternatives"in st.session_state and st.session_state.better_alternatives:
             sec_title = st.session_state.get("sector_category", "Sector")
-            st.markdown(f'<div class="section-header">🌟 Better {sec_title} Alternatives (Industry Peers)</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="section-header">Stronger peers in {sec_title}</div>', unsafe_allow_html=True)
             alt_cols = st.columns(len(st.session_state.better_alternatives))
 
             for idx, (col, alt) in enumerate(zip(alt_cols, st.session_state.better_alternatives)):
-                alt_sig_color = SIGNAL_COLORS.get(alt["signal"], "#58a6ff")
+                alt_sig_color = color_for_signal(alt["signal"])
                 with col:
                     st.markdown(
                         f"""
-                        <div class="metric-card" style="border-top: 3px solid {alt_sig_color}; text-align:left; padding:16px; margin-bottom:10px;">
+                        <div class="metric-card" style="text-align:left; padding:16px; margin-bottom:10px;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                <span class="mono-font" style="font-size:14px; font-weight:700; color:#f0f6fc;">{alt['symbol']}</span>
-                                <span style="font-size:11px; font-weight:700; color:{alt_sig_color}; background:{alt_sig_color}22; padding:2px 8px; border-radius:10px; border:1px solid {alt_sig_color}44;">{alt['signal']}</span>
+                                <span class="mono-font"style="font-size:14px; font-weight:700; color:var(--ink);">{alt['symbol']}</span>
+                                <span style="font-size:11px; font-weight:700; color:{alt_sig_color}; background:var(--panel-alt); padding:2px 8px; border-radius:10px; border:1px solid var(--border);">{alt['signal']}</span>
                             </div>
-                            <div style="font-size:11px; color:#8b949e; margin-bottom:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{alt['name']}</div>
+                            <div style="font-size:11px; color:var(--ink-2); margin-bottom:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{alt['name']}</div>
                             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
-                                <span style="color:#8b949e;">Confidence:</span>
-                                <span class="mono-font" style="color:{alt_sig_color}; font-weight:700;">{alt['confidence']:.1f}%</span>
+                                <span style="color:var(--ink-2);">Confidence:</span>
+                                <span class="mono-font"style="color:{alt_sig_color}; font-weight:700;">{alt['confidence']:.1f}%</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
-                                <span style="color:#8b949e;">Price:</span>
-                                <span class="mono-font" style="color:#f0f6fc; font-weight:700;">₹{alt['price']:,.2f}</span>
+                                <span style="color:var(--ink-2);">Price:</span>
+                                <span class="mono-font"style="color:var(--ink); font-weight:700;">₹{alt['price']:,.2f}</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:12px;">
-                                <span style="color:#8b949e;">Risk:Reward:</span>
-                                <span class="mono-font" style="color:#00e676; font-weight:700;">1:{alt['rr']:.1f}</span>
+                                <span style="color:var(--ink-2);">Risk:Reward:</span>
+                                <span class="mono-font"style="color:var(--pos); font-weight:700;">1:{alt['rr']:.1f}</span>
                             </div>
                         </div>
                         """,
                         unsafe_allow_html=True,
                     )
-                    if st.button(f"⚡ Analyze {alt['symbol'].replace('.NS','')}", key=f"btn_alt_{alt['symbol']}_{idx}", use_container_width=True):
+                    if st.button(f"Analyze {alt['symbol'].replace('.NS','')}", key=f"btn_alt_{alt['symbol']}_{idx}", use_container_width=True):
                         st.session_state.selected_symbol = alt["symbol"]
                         load_and_analyse(alt["symbol"])
                         st.rerun()
@@ -1620,19 +1591,19 @@ if active_tab == "SIGNAL TERMINAL":
         # ── Watchlist + Alert buttons ────────────────────────────────────────
         btn_c1, btn_c2, btn_c3 = st.columns(3)
         with btn_c1:
-            in_wl = is_in_watchlist(selected_symbol)
-            wl_label = "⭐ Remove from Watchlist" if in_wl else "⭐ Add to Watchlist"
+            in_wl = is_in_watchlist(selected_symbol, user_id=current_user_id)
+            wl_label = "Remove from Watchlist"if in_wl else "Add to Watchlist"
             if st.button(wl_label, use_container_width=True):
                 if in_wl:
-                    remove_from_watchlist(selected_symbol)
+                    remove_from_watchlist(selected_symbol, user_id=current_user_id)
                     st.success(f"Removed {selected_symbol} from watchlist")
                 else:
-                    add_to_watchlist(selected_symbol, exchange=exchange)
+                    add_to_watchlist(selected_symbol, exchange=exchange, user_id=current_user_id)
                     st.success(f"Added {selected_symbol} to watchlist")
                 st.rerun()
 
         with btn_c2:
-            if st.button("📱 Send Telegram Alert", use_container_width=True):
+            if st.button("Send Telegram Alert", use_container_width=True):
                 msg = format_signal_message(
                     result.symbol, result.signal, result.confidence,
                     risk.entry_price, risk.stop_loss, risk.take_profit, risk.risk_reward,
@@ -1641,7 +1612,7 @@ if active_tab == "SIGNAL TERMINAL":
                 st.success("Telegram sent!") if ok else st.error("Telegram not configured or failed.")
 
         with btn_c3:
-            if st.button("📧 Send Email Alert", use_container_width=True):
+            if st.button("Send Email Alert", use_container_width=True):
                 subj, body = format_signal_email(
                     result.symbol, result.signal, result.confidence,
                     risk.entry_price, risk.stop_loss, risk.take_profit, risk.risk_reward,
@@ -1655,10 +1626,10 @@ if active_tab == "SIGNAL TERMINAL":
 # TAB 2 — CHART
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "TECHNICAL ANALYSIS":
+elif active_tab == "Technical":
 
     if st.session_state.df is None:
-        st.info("📊 Load a stock from the sidebar to see the chart.")
+        st.info("Load a stock from the sidebar to see the chart.")
     else:
         df = st.session_state.df
         result = st.session_state.signal_result
@@ -1667,15 +1638,15 @@ elif active_tab == "TECHNICAL ANALYSIS":
         try:
             info = get_company_info(result.symbol)
             last_price = df["Close"].iloc[-1]
-            prev_price = df["Close"].iloc[-2] if len(df) > 1 else last_price
+            prev_price = df["Close"].iloc[-2] if len(df) >1 else last_price
             chg = pct_change(float(prev_price), float(last_price))
 
             ci1, ci2, ci3, ci4 = st.columns(4)
             ci1.markdown(
                 f"""<div class="metric-card">
                     <div class="metric-label">Company</div>
-                    <div style="font-size:14px;font-weight:600;color:#e6edf3">{info.get('name', result.symbol)}</div>
-                    <div style="font-size:11px;color:#8b949e;margin-top:4px;">{info.get('sector', '')}</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--ink)">{info.get('name', result.symbol)}</div>
+                    <div style="font-size:11px;color:var(--ink-2);margin-top:4px;">{info.get('sector', '')}</div>
                 </div>""",
                 unsafe_allow_html=True,
             )
@@ -1683,8 +1654,8 @@ elif active_tab == "TECHNICAL ANALYSIS":
                 f"""<div class="metric-card">
                     <div class="metric-label">Last Price</div>
                     <div class="metric-value">₹{last_price:,.2f}</div>
-                    <div class="metric-delta" style="color:{'#00e676' if chg >= 0 else '#f44336'}">
-                        {'▲' if chg >= 0 else '▼'} {abs(chg):.2f}%
+                    <div class="metric-delta"style="color:{'var(--pos)'if chg >= 0 else 'var(--neg)'}">
+                        {''if chg >= 0 else ''} {abs(chg):.2f}%
                     </div>
                 </div>""",
                 unsafe_allow_html=True,
@@ -1723,7 +1694,7 @@ elif active_tab == "TECHNICAL ANALYSIS":
         st.plotly_chart(fig, use_container_width=True)
 
         # Raw data expander
-        with st.expander("📋 View Raw Data"):
+        with st.expander("View Raw Data"):
             display_cols = [c for c in df.columns if c in [
                 "Open", "High", "Low", "Close", "Volume",
                 "EMA_20", "EMA_50", "RSI", "MACD", "ADX", "ATR",
@@ -1732,7 +1703,7 @@ elif active_tab == "TECHNICAL ANALYSIS":
             raw_sub = df[display_cols].tail(50).copy()
             float_cols = raw_sub.select_dtypes(include=["float", "float64"]).columns
             st.dataframe(
-                raw_sub.style.format({c: "{:.2f}" for c in float_cols}),
+                raw_sub.style.format({c: "{:.2f}"for c in float_cols}),
                 use_container_width=True,
             )
 
@@ -1742,9 +1713,9 @@ elif active_tab == "TECHNICAL ANALYSIS":
 # TAB 3 — BACKTESTING
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "QUANT BACKTEST":
+elif active_tab == "Backtest":
 
-    st.markdown("### ⚡ Strategy Backtesting")
+    st.markdown("###  Strategy Backtesting")
 
     bt_col1, bt_col2 = st.columns([1, 2])
 
@@ -1768,7 +1739,7 @@ elif active_tab == "QUANT BACKTEST":
             "Initial Capital (₹)", min_value=10_000, max_value=10_000_000,
             value=BT_DEFAULT_CAPITAL, step=10_000, format="%d", key="bt_capital",
         )
-        run_bt = st.button("▶ Run Backtest", type="primary", use_container_width=True)
+        run_bt = st.button("Run Backtest", type="primary", use_container_width=True)
 
     with bt_col2:
         if run_bt:
@@ -1784,20 +1755,20 @@ elif active_tab == "QUANT BACKTEST":
                     bm4, bm5, bm6 = st.columns(3)
 
                     def _bt_metric(col, label, val, color=None):
-                        style = f"color:{color};" if color else ""
+                        style = f"color:{color};"if color else ""
                         col.markdown(
                             f"""<div class="metric-card">
                                 <div class="metric-label">{label}</div>
-                                <div class="metric-value" style="font-size:20px;{style}">{val}</div>
+                                <div class="metric-value"style="font-size:20px;{style}">{val}</div>
                             </div>""",
                             unsafe_allow_html=True,
                         )
 
-                    color_np = "#00e676" if bt_result.net_profit >= 0 else "#f44336"
+                    color_np = "var(--pos)"if bt_result.net_profit >= 0 else "var(--neg)"
                     _bt_metric(bm1, "Net Profit", format_inr(bt_result.net_profit), color_np)
                     _bt_metric(bm2, "CAGR", f"{bt_result.cagr:.1f}%", color_np)
                     _bt_metric(bm3, "Sharpe Ratio", f"{bt_result.sharpe_ratio:.2f}")
-                    _bt_metric(bm4, "Max Drawdown", f"{bt_result.max_drawdown:.1f}%", "#f44336")
+                    _bt_metric(bm4, "Max Drawdown", f"{bt_result.max_drawdown:.1f}%", "var(--neg)")
                     _bt_metric(bm5, "Win Rate", f"{bt_result.win_rate:.1f}%")
                     _bt_metric(bm6, "Total Trades", str(bt_result.total_trades))
 
@@ -1810,15 +1781,61 @@ elif active_tab == "QUANT BACKTEST":
 
                     st.markdown("<br>", unsafe_allow_html=True)
 
+                    # ── Benchmark ────────────────────────────────────────────
+                    # A return figure means nothing on its own. If the strategy
+                    # made 24% while the stock did 31%, the strategy lost.
+                    st.markdown("####  Versus buy & hold")
+                    beat = bt_result.excess_return_pct >= 0
+                    bb1, bb2, bb3, bb4 = st.columns(4)
+                    _bt_metric(bb1, "Strategy Return", f"{bt_result.net_profit_pct:+.1f}%")
+                    _bt_metric(bb2, "Buy & Hold Return", f"{bt_result.benchmark_return_pct:+.1f}%")
+                    _bt_metric(
+                        bb3,
+                        "Excess (Alpha)",
+                        f"{bt_result.excess_return_pct:+.1f}%",
+                        "var(--pos)"if beat else "var(--neg)",
+                    )
+                    _bt_metric(bb4, "Time in Market", f"{bt_result.time_in_market_pct:.0f}%")
+
+                    if beat:
+                        st.success(
+                            f"The strategy beat buy & hold by {bt_result.excess_return_pct:+.1f}% "
+                            f"while exposed to the market only {bt_result.time_in_market_pct:.0f}% of the time. "
+                            f"Buy & hold drawdown was {bt_result.benchmark_max_drawdown:.1f}% "
+                            f"vs the strategy's {bt_result.max_drawdown:.1f}%."
+                        )
+                    else:
+                        st.warning(
+                            f"Buy & hold beat the strategy by {abs(bt_result.excess_return_pct):.1f}% "
+                            f"over this window. Trading costs and time out of the market are "
+                            f"included in the strategy figure."
+                        )
+
+                    if bt_result.exit_breakdown:
+                        exits = " · ".join(
+                            f"{reason}: {count}"
+                            for reason, count in bt_result.exit_breakdown.items()
+                        )
+                        st.caption(f"Exits — {exits}")
+
+                    st.caption(
+                        "Signals are generated from each bar's close and filled at the "
+                        "next bar's open. ATR stop and target are applied intrabar; when "
+                        "one bar spans both, the stop is assumed to fill first. Costs: "
+                        f"{BT_COMMISSION * 100:.2f}% per side plus {BT_SLIPPAGE * 100:.2f}% slippage."
+                    )
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+
                     # Equity curve
                     if not bt_result.equity_curve.empty:
-                        st.markdown("#### 📈 Equity Curve")
+                        st.markdown("####  Equity Curve")
                         eq_fig = build_equity_curve(bt_result.equity_curve, bt_capital)
                         st.plotly_chart(eq_fig, use_container_width=True)
 
                     # Trade log
                     if not bt_result.trade_log.empty:
-                        with st.expander("📋 Trade Log"):
+                        with st.expander("Trade Log"):
                             st.dataframe(bt_result.trade_log, use_container_width=True)
 
                 except Exception as exc:
@@ -1826,8 +1843,8 @@ elif active_tab == "QUANT BACKTEST":
         else:
             st.markdown(
                 """
-                <div style="text-align:center;padding:60px 20px;color:#8b949e;">
-                    <div style="font-size:48px;margin-bottom:16px;">⚡</div>
+                <div style="text-align:center;padding:60px 20px;color:var(--ink-2);">
+                    <div style="font-size:48px;margin-bottom:16px;"></div>
                     <p>Configure parameters and click <strong>Run Backtest</strong></p>
                 </div>
                 """,
@@ -1838,9 +1855,9 @@ elif active_tab == "QUANT BACKTEST":
 # TAB 4 — SCANNER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "MARKET SCANNER":
+elif active_tab == "Scanner":
 
-    st.markdown("### 🌐 Overall Market Scanner & Sector Intelligence")
+    st.markdown("###  Overall Market Scanner & Sector Intelligence")
 
     sc_col1, sc_col2 = st.columns([1, 3])
 
@@ -1854,30 +1871,59 @@ elif active_tab == "MARKET SCANNER":
         )
         scan_min_confidence = st.slider("Min Confidence %", 0, 100, 35, key="scan_conf_slider")
         scan_display_limit = st.slider("Display Limit (Top Stocks)", 10, 100, 20, step=10, key="scan_limit_slider")
-        run_scan = st.button("🔍 Scan Overall Market", type="primary", use_container_width=True, key="run_scan_btn")
+        run_scan = st.button("Scan Overall Market", type="primary", use_container_width=True, key="run_scan_btn")
 
     with sc_col2:
         if run_scan:
             scan_stocks = INDEX_GROUPS.get(scan_index, ALL_STOCKS)
             results_list = []
 
-            progress = st.progress(0, text="Scanning Overall Market Data…")
-            for i, stock in enumerate(scan_stocks):
-                sym = stock["symbol"]
-                progress.progress((i + 1) / len(scan_stocks), text=f"Scanning {stock['name']} ({sym})…")
+            progress = st.progress(0, text="Fetching market data…")
+
+            # Fetch every symbol concurrently first — this is almost all of the
+            # scan's wall time, and it used to run one ticker at a time.
+            symbols = [s["symbol"] for s in scan_stocks]
+            name_by_symbol = {s["symbol"]: s["name"] for s in scan_stocks}
+
+            def _on_fetch_progress(done: int, total: int, sym: str) ->None:
+                progress.progress(
+                    min(done / max(total, 1) * 0.7, 0.7),
+                    text=f"Fetching data… {done}/{total}",
+                )
+
+            frames = fetch_multiple_stocks(
+                symbols,
+                interval="1d",
+                period="6mo",
+                progress_callback=_on_fetch_progress,
+            )
+
+            scan_failures: list[str] = []
+
+            for i, sym in enumerate(symbols):
+                name_str = name_by_symbol.get(sym, sym)
+                progress.progress(
+                    0.7 + (i + 1) / len(symbols) * 0.3,
+                    text=f"Analysing {name_str} ({sym})…",
+                )
+                raw = frames.get(sym)
+                if raw is None or raw.empty:
+                    scan_failures.append(sym)
+                    continue
+
                 try:
-                    raw = fetch_ohlcv(sym, interval="1d", period="6mo")
                     enriched = compute_all_indicators(raw)
                     sig_r = generate_signal(sym, enriched)
+                    risk_r = calculate_risk(enriched, sig_r.signal)
                     last = enriched.iloc[-1]
-                    prev = enriched.iloc[-2] if len(enriched) > 1 else last
+                    prev = enriched.iloc[-2] if len(enriched) >1 else last
                     chg = pct_change(float(prev["Close"]), float(last["Close"]))
                     p1w = getattr(sig_r, "pct_1w", 0.0)
                     p2w = getattr(sig_r, "pct_2w", 0.0)
 
                     results_list.append({
                         "Symbol": sym,
-                        "Name": stock["name"],
+                        "Name": name_str,
                         "Price": f"₹{last['Close']:,.2f}",
                         "Change%": f"{chg:+.2f}%",
                         "1W_Chg": f"{p1w:+.2f}%",
@@ -1891,7 +1937,10 @@ elif active_tab == "MARKET SCANNER":
                         "raw_2w": p2w,
                     })
 
-                    # Persist scanned signal to SQLite database
+                    # Persist scanned signal to SQLite database.
+                    # risk_r and name_str used to be referenced here without
+                    # ever being assigned, so every iteration raised NameError
+                    # into the bare except below and nothing was ever saved.
                     save_signal(
                         symbol=sym,
                         signal=sig_r.signal,
@@ -1913,15 +1962,22 @@ elif active_tab == "MARKET SCANNER":
                         source="Market Scanner",
                     )
 
-                except Exception as exc:
-
-                    logger.warning("Scanner error for %s: %s", sym, exc)
+                except Exception as exc:  # noqa: BLE001
+                    scan_failures.append(sym)
+                    logger.warning("Scanner error for %s: %s", sym, exc, exc_info=True)
 
             progress.empty()
+
+            if scan_failures:
+                st.warning(
+                    f"Skipped {len(scan_failures)} symbol(s) with no usable data: "
+                    + ", ".join(scan_failures[:10])
+                    + ("…"if len(scan_failures) >10 else "")
+                )
             st.session_state.scan_results = results_list
             st.session_state.scan_index_label = scan_index
 
-        if "scan_results" in st.session_state and st.session_state.scan_results:
+        if "scan_results"in st.session_state and st.session_state.scan_results:
             results_list = st.session_state.scan_results
             scan_index_label = st.session_state.get("scan_index_label", scan_index)
 
@@ -1931,23 +1987,23 @@ elif active_tab == "MARKET SCANNER":
             buy_cnt = sum(1 for r in results_list if r["Signal"] == "Buy")
             hold_cnt = sum(1 for r in results_list if r["Signal"] == "Hold")
             sell_cnt = sum(1 for r in results_list if r["Signal"] in ("Sell", "Strong Sell"))
-            bullish_pct = ((strong_buy_cnt + buy_cnt) / total_scanned * 100) if total_scanned > 0 else 0
+            bullish_pct = ((strong_buy_cnt + buy_cnt) / total_scanned * 100) if total_scanned >0 else 0
 
             # Render Overall Market Breadth Banner
             st.markdown(
                 f"""
-                <div style="background:rgba(22,27,34,0.8); border:1px solid rgba(88,166,255,0.25); border-radius:12px; padding:14px 20px; margin-bottom:16px;">
+                <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 20px; margin-bottom:16px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                         <div>
-                            <span style="color:#8b949e; font-size:12px; text-transform:uppercase;">Overall Market Breadth:</span>
-                            <span style="color:#00e676; font-weight:800; font-size:16px; margin-left:6px;">{bullish_pct:.1f}% Bullish Momentum</span>
+                            <span style="color:var(--ink-2); font-size:12px; text-transform:uppercase;">Overall Market Breadth:</span>
+                            <span style="color:var(--pos); font-weight:800; font-size:16px; margin-left:6px;">{bullish_pct:.1f}% Bullish Momentum</span>
                         </div>
-                        <div style="font-size:12.5px; color:#c9d1d9;">
-                            Scanned: <strong style="color:#f0f6fc;">{total_scanned} Stocks</strong> | 
-                            🟢 Strong Buy: <strong style="color:#00e676;">{strong_buy_cnt}</strong> | 
-                            🟩 Buy: <strong style="color:#58a6ff;">{buy_cnt}</strong> | 
-                            ⚪ Hold: <strong style="color:#ffb300;">{hold_cnt}</strong> | 
-                            🔴 Bearish: <strong style="color:#ff1744;">{sell_cnt}</strong>
+                        <div style="font-size:12.5px; color:var(--ink-2);">
+                            Scanned: <strong style="color:var(--ink);">{total_scanned} Stocks</strong>| 
+                             Strong Buy: <strong style="color:var(--pos);">{strong_buy_cnt}</strong>| 
+                             Buy: <strong style="color:var(--accent);">{buy_cnt}</strong>| 
+                             Hold: <strong style="color:var(--warn);">{hold_cnt}</strong>| 
+                             Bearish: <strong style="color:var(--neg);">{sell_cnt}</strong>
                         </div>
                     </div>
                 </div>
@@ -1968,29 +2024,29 @@ elif active_tab == "MARKET SCANNER":
             else:
                 display_items = sorted(results_list, key=lambda x: x["Confidence"], reverse=True)[:scan_display_limit]
 
-            st.markdown(f"#### 🎯 Scanned Market Opportunities (Showing Top {len(display_items)} of {total_scanned} Scanned)")
+            st.markdown(f"####  Scanned Market Opportunities (Showing Top {len(display_items)} of {total_scanned} Scanned)")
             for idx, item in enumerate(display_items):
-                sig_c = SIGNAL_COLORS.get(item["Signal"], "#9e9e9e")
-                chg_c = "#00e676" if item["raw_change"] >= 0 else "#ff1744"
-                chg_1w_c = "#00e676" if item.get("raw_1w", 0) >= 0 else "#ff1744"
-                chg_2w_c = "#00e676" if item.get("raw_2w", 0) >= 0 else "#ff1744"
+                sig_c = color_for_signal(item["Signal"])
+                chg_c = "var(--pos)"if item["raw_change"] >= 0 else "var(--neg)"
+                chg_1w_c = "var(--pos)"if item.get("raw_1w", 0) >= 0 else "var(--neg)"
+                chg_2w_c = "var(--pos)"if item.get("raw_2w", 0) >= 0 else "var(--neg)"
 
                 col_info, col_act = st.columns([4, 1])
                 with col_info:
                     st.markdown(
                         f"""
-                        <div class="metric-card" style="border-left:4px solid {sig_c}; padding:10px 16px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                        <div class="metric-card"style="border-left:4px solid {sig_c}; padding:10px 16px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
                             <div style="display:flex; align-items:center; gap:12px;">
-                                <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:14px;">{item['Symbol']}</span>
-                                <span style="font-size:12px; color:#8b949e;">{item['Name']}</span>
+                                <span class="mono-font"style="font-weight:700; color:var(--ink); font-size:14px;">{item['Symbol']}</span>
+                                <span style="font-size:12px; color:var(--ink-2);">{item['Name']}</span>
                             </div>
                             <div style="display:flex; align-items:center; gap:14px;">
-                                <span class="mono-font" style="font-weight:700; color:#f0f6fc; font-size:13px;">{item['Price']}</span>
-                                <span class="mono-font" style="font-size:12px; color:{chg_c}; font-weight:600;">1D: {item['Change%']}</span>
-                                <span class="mono-font" style="font-size:12px; color:{chg_1w_c}; font-weight:600;">1W: {item.get('1W_Chg', '0.00%')}</span>
-                                <span class="mono-font" style="font-size:12px; color:{chg_2w_c}; font-weight:600;">2W: {item.get('2W_Chg', '0.00%')}</span>
+                                <span class="mono-font"style="font-weight:700; color:var(--ink); font-size:13px;">{item['Price']}</span>
+                                <span class="mono-font"style="font-size:12px; color:{chg_c}; font-weight:600;">1D: {item['Change%']}</span>
+                                <span class="mono-font"style="font-size:12px; color:{chg_1w_c}; font-weight:600;">1W: {item.get('1W_Chg', '0.00%')}</span>
+                                <span class="mono-font"style="font-size:12px; color:{chg_2w_c}; font-weight:600;">2W: {item.get('2W_Chg', '0.00%')}</span>
                                 <span style="font-size:11px; font-weight:700; color:{sig_c}; background:{sig_c}22; padding:2px 8px; border-radius:8px;">{item['Signal']}</span>
-                                <span class="mono-font" style="font-size:12px; color:#58a6ff; font-weight:700;">{item['Confidence']:.1f}%</span>
+                                <span class="mono-font"style="font-size:12px; color:var(--accent); font-weight:700;">{item['Confidence']:.1f}%</span>
                             </div>
                         </div>
                         """,
@@ -1999,15 +2055,15 @@ elif active_tab == "MARKET SCANNER":
 
 
                     with col_act:
-                        if st.button(f"⚡ Analyse", key=f"scan_btn_{idx}_{item['Symbol']}"):
+                        if st.button(f"Analyse", key=f"scan_btn_{idx}_{item['Symbol']}"):
                             load_and_analyse(item['Symbol'])
                             st.rerun()
         else:
             st.markdown(
                 """
-                <div style="text-align:center;padding:60px 20px;color:#8b949e;">
-                    <div style="font-size:48px;margin-bottom:16px;">🌐</div>
-                    <h3 style="color:#58a6ff; margin-bottom:8px;">Overall Market Scanner</h3>
+                <div style="text-align:center;padding:60px 20px;color:var(--ink-2);">
+                    <div style="font-size:48px;margin-bottom:16px;"></div>
+                    <h3 style="color:var(--accent); margin-bottom:8px;">Overall Market Scanner</h3>
                     <p>Select <strong>ALL STOCKS (100+ Liquid NSE)</strong> or a specific sector and click <strong>Scan Overall Market</strong> to analyze real-time market breadth and find high-confidence signals.</p>
                 </div>
                 """,
@@ -2020,11 +2076,11 @@ elif active_tab == "MARKET SCANNER":
 # SECTION 5 — SECTOR & INDUSTRY PERFORMANCE (1-MONTH TREND FORECASTING)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
-    st.markdown("### 🏢 Industry Sector Performance & 1-Month Trend Forecasting")
+elif active_tab == "Sectors":
+    st.markdown("###  Industry Sector Performance & 1-Month Trend Forecasting")
     st.markdown(
         """
-        <div class="ai-box" style="padding:14px 20px; margin-bottom:18px; border-radius:12px;">
+        <div class="ai-box"style="padding:14px 20px; margin-bottom:18px; border-radius:12px;">
             <div style="font-size:13.5px; line-height:1.5;">
                 Track real-time momentum, 1-month predictive trend forecasts, and sector rotation across key Indian market industries.
                 Quantitative scoring incorporates <strong>30-Day Returns, Moving Average Breadth (% above 20 EMA), RSI Confluence, and Outperforming Equities</strong>.
@@ -2036,9 +2092,9 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
 
     col_btn, col_space = st.columns([1.5, 3])
     with col_btn:
-        run_sector_scan = st.button("⚡ Scan Industry Sectors & 1M Forecast", type="primary", use_container_width=True)
+        run_sector_scan = st.button("Scan Industry Sectors & 1M Forecast", type="primary", use_container_width=True)
 
-    if run_sector_scan or "sector_analysis_data" not in st.session_state:
+    if run_sector_scan or "sector_analysis_data"not in st.session_state:
         with st.spinner("Analyzing Indian Industry Sectors & Computing 30-Day Trend Models..."):
             sector_data = analyze_sector_performance()
             st.session_state["sector_analysis_data"] = sector_data
@@ -2050,14 +2106,14 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
         t_color = top_sector["trend_color"]
         t_sec = top_sector["sector"]
         t_ret = top_sector["ret_1m"]
-        st.markdown(f"#### 🏆 Top Outperforming Industry: <span style='color:{t_color};'>{t_sec} ({t_ret:+.2f}% 1M)</span>", unsafe_allow_html=True)
+        st.markdown(f"####  Top Outperforming Industry: <span style='color:{t_color};'>{t_sec} ({t_ret:+.2f}% 1M)</span>", unsafe_allow_html=True)
 
 
         c1, c2, c3, c4 = st.columns(4)
         c1.markdown(
-            f"""<div class="metric-card" style="border-top:3px solid {top_sector['trend_color']};">
+            f"""<div class="metric-card"style="border-top:3px solid {top_sector['trend_color']};">
                 <div class="metric-label">Leading Sector</div>
-                <div style="font-size:18px; font-weight:800; color:#f0f6fc;">{top_sector['sector']}</div>
+                <div style="font-size:18px; font-weight:800; color:var(--ink);">{top_sector['sector']}</div>
                 <div style="font-size:12px; color:{top_sector['trend_color']}; margin-top:2px;">{top_sector['trend_icon']} {top_sector['trend_label']}</div>
             </div>""",
             unsafe_allow_html=True,
@@ -2065,34 +2121,34 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
         c2.markdown(
             f"""<div class="metric-card">
                 <div class="metric-label">1-Month Return</div>
-                <div style="font-size:22px; font-weight:800; color:{'#00e676' if top_sector['ret_1m']>=0 else '#ff1744'};">{top_sector['ret_1m']:+.2f}%</div>
-                <div style="font-size:11px; color:#8b949e; margin-top:2px;">1W: {top_sector['ret_1w']:+.2f}% | 1D: {top_sector['ret_1d']:+.2f}%</div>
+                <div style="font-size:22px; font-weight:800; color:{'var(--pos)'if top_sector['ret_1m']>=0 else 'var(--neg)'};">{top_sector['ret_1m']:+.2f}%</div>
+                <div style="font-size:11px; color:var(--ink-2); margin-top:2px;">1W: {top_sector['ret_1w']:+.2f}% | 1D: {top_sector['ret_1d']:+.2f}%</div>
             </div>""",
             unsafe_allow_html=True,
         )
         c3.markdown(
             f"""<div class="metric-card">
                 <div class="metric-label">1M Forecast Target</div>
-                <div style="font-size:20px; font-weight:800; color:#58a6ff;">{top_sector['target_range']}</div>
-                <div style="font-size:11px; color:#8b949e; margin-top:2px;">Score: {top_sector['score_1m']:.1f}%</div>
+                <div style="font-size:20px; font-weight:800; color:var(--accent);">{top_sector['target_range']}</div>
+                <div style="font-size:11px; color:var(--ink-2); margin-top:2px;">Score: {top_sector['score_1m']:.1f}%</div>
             </div>""",
             unsafe_allow_html=True,
         )
         c4.markdown(
             f"""<div class="metric-card">
                 <div class="metric-label">Sector Breadth</div>
-                <div style="font-size:20px; font-weight:800; color:#00e676;">{top_sector['pct_above_ema20']:.0f}% > 20 EMA</div>
-                <div style="font-size:11px; color:#8b949e; margin-top:2px;">RSI: {top_sector['avg_rsi']:.1f}</div>
+                <div style="font-size:20px; font-weight:800; color:var(--pos);">{top_sector['pct_above_ema20']:.0f}% >20 EMA</div>
+                <div style="font-size:11px; color:var(--ink-2); margin-top:2px;">RSI: {top_sector['avg_rsi']:.1f}</div>
             </div>""",
             unsafe_allow_html=True,
         )
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("#### 📊 Complete Industry Performance & 1-Month Trend Matrix")
+        st.markdown("####  Complete Industry Performance & 1-Month Trend Matrix")
 
         matrix_rows = []
         for s in sector_data:
-            leaders_str = ", ".join([f"{l['symbol'].replace('.NS','')} ({l['ret_1m']:+.1f}%)" for l in s['top_leaders']])
+            leaders_str = ", ".join([f"{l['symbol'].replace('.NS','')} ({l['ret_1m']:+.1f}%)"for l in s['top_leaders']])
             matrix_rows.append({
                 "Industry Sector": s["sector"],
                 "1M Return": f"{s['ret_1m']:+.2f}%",
@@ -2107,7 +2163,7 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
         st.dataframe(pd.DataFrame(matrix_rows), use_container_width=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("#### 🏢 Detailed Sector Breakdown & 30-Day Outlook Cards")
+        st.markdown("####  Detailed Sector Breakdown & 30-Day Outlook Cards")
 
         for sec in sector_data:
             with st.expander(f"{sec['trend_icon']} {sec['sector']} — 1M Return: {sec['ret_1m']:+.2f}% | Forecast: {sec['trend_label']}"):
@@ -2115,18 +2171,18 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
                 st.markdown(f"**Expected 30-Day Price Movement Target:** <span style='color:{sec['trend_color']}; font-weight:800;'>{sec['target_range']}</span>", unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("**⭐ Top Performing Equities in this Sector:**")
+                st.markdown("** Top Performing Equities in this Sector:**")
 
                 l_cols = st.columns(len(sec["top_leaders"]))
                 for idx, leader in enumerate(sec["top_leaders"]):
                     with l_cols[idx]:
                         st.markdown(
                             f"""
-                            <div class="metric-card" style="padding:12px; border:1px solid rgba(88,166,255,0.25);">
-                                <div style="font-weight:800; font-size:14px; color:#58a6ff;">{leader['symbol'].replace('.NS','')}</div>
-                                <div style="font-size:11px; color:#8b949e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{leader['name']}</div>
-                                <div style="font-size:14px; font-weight:800; color:{'#00e676' if leader['ret_1m']>=0 else '#ff1744'}; margin-top:4px;">1M: {leader['ret_1m']:+.2f}%</div>
-                                <div style="font-size:11px; color:#c9d1d9;">Price: ₹{leader['price']:,.2f}</div>
+                            <div class="metric-card"style="padding:12px; border:1px solid var(--border);">
+                                <div style="font-weight:800; font-size:14px; color:var(--accent);">{leader['symbol'].replace('.NS','')}</div>
+                                <div style="font-size:11px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{leader['name']}</div>
+                                <div style="font-size:14px; font-weight:800; color:{'var(--pos)'if leader['ret_1m']>=0 else 'var(--neg)'}; margin-top:4px;">1M: {leader['ret_1m']:+.2f}%</div>
+                                <div style="font-size:11px; color:var(--ink-2);">Price: ₹{leader['price']:,.2f}</div>
                             </div>
                             """,
                             unsafe_allow_html=True,
@@ -2141,10 +2197,10 @@ elif active_tab == "SECTOR & INDUSTRY PERFORMANCE":
 # TAB 6 — WATCHLIST
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "WATCHLIST & AUDIT LOGS":
+elif active_tab == "Watchlist":
 
 
-    st.markdown("### ⭐ Watchlist")
+    st.markdown("###  Watchlist")
 
     wl_add_col, wl_table_col = st.columns([1, 3])
 
@@ -2153,22 +2209,22 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
         wl_new = st.text_input("Symbol (e.g. WIPRO)", key="wl_new_symbol")
         wl_name = st.text_input("Name (optional)", key="wl_new_name")
         wl_exch = st.selectbox("Exchange", ["NSE", "BSE"], key="wl_exch")
-        if st.button("➕ Add to Watchlist", use_container_width=True):
+        if st.button("Add to Watchlist", use_container_width=True):
             if wl_new.strip():
                 sym = normalise_symbol(wl_new.strip(), wl_exch)
-                add_to_watchlist(sym, wl_name or sym, wl_exch)
+                add_to_watchlist(sym, wl_name or sym, wl_exch, user_id=current_user_id)
                 st.success(f"Added {sym}")
                 st.rerun()
             else:
                 st.warning("Enter a symbol first.")
 
     with wl_table_col:
-        watchlist = get_watchlist()
+        watchlist = get_watchlist(user_id=current_user_id)
         if not watchlist:
             st.markdown(
                 """
-                <div style="text-align:center;padding:60px;color:#8b949e;">
-                    <div style="font-size:48px;margin-bottom:16px;">⭐</div>
+                <div style="text-align:center;padding:60px;color:var(--ink-2);">
+                    <div style="font-size:48px;margin-bottom:16px;"></div>
                     <p>Your watchlist is empty. Add stocks using the panel on the left.</p>
                 </div>
                 """,
@@ -2208,16 +2264,16 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
 
                     col_a, col_b, col_c, col_d = st.columns([2, 2.5, 1.5, 1])
                     col_a.markdown(f"**{item['symbol']}**")
-                    col_b.markdown(f"<span style='color:#8b949e'>{item['name'] or '—'}</span>", unsafe_allow_html=True)
+                    col_b.markdown(f"<span style='color:var(--ink-2)'>{item['name'] or '—'}</span>", unsafe_allow_html=True)
                     if col_c.button("Analyse", key=f"wl_ana_{item['symbol']}"):
                         load_and_analyse(item["symbol"])
                         st.rerun()
                     if col_d.button("Remove", key=f"rm_{item['symbol']}"):
-                        remove_from_watchlist(item["symbol"])
+                        remove_from_watchlist(item["symbol"], user_id=current_user_id)
                         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### 📜 Full Signal Audit Log & Quantitative Database Records")
+    st.markdown("####  Full Signal Audit Log & Quantitative Database Records")
     recent = get_recent_signals(limit=50)
     if recent:
         sig_df = pd.DataFrame(recent)
@@ -2225,7 +2281,7 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
         # Download full audit log CSV button
         csv_data = sig_df.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Download Full Signal Audit Log (CSV)",
+            label="Download Full Signal Audit Log (CSV)",
             data=csv_data,
             file_name=f"signals_audit_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv",
@@ -2243,7 +2299,7 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
             rr = r.get("risk_reward", 0.0)
             src = r.get("source", "Signal Terminal")
             dt_str = str(r.get("generated_at", ""))[:16]
-            sig_c = SIGNAL_COLORS.get(sig, "#9e9e9e")
+            sig_c = color_for_signal(sig)
 
             with st.expander(f"{sym} — {sig} ({conf:.1f}% Conf) | Entry: ₹{entry:,.2f} | {dt_str}"):
                 col1, col2, col3, col4 = st.columns(4)
@@ -2274,7 +2330,7 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
 
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<hr style='border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:var(--border);'>", unsafe_allow_html=True)
     st.markdown("### Search History & End-Of-Day (EOD) Analytics")
 
     eod_col1, eod_col2 = st.columns([1, 2.5])
@@ -2286,24 +2342,24 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
 
         st.markdown(
             f"""
-            <div class="metric-card" style="border-top:3px solid #58a6ff; margin-bottom:12px;">
-                <div style="font-size:12px; color:#8b949e; text-transform:uppercase;">Total Queries ({eod_date_str})</div>
-                <div style="font-size:28px; font-weight:800; color:#58a6ff; margin-top:2px;">{eod_stats['total_queries']}</div>
-                <div style="font-size:12px; color:#8b949e; margin-top:4px;">Unique Stocks: <strong style="color:#f0f6fc;">{eod_stats['unique_stocks']}</strong></div>
+            <div class="metric-card"style="border-top:3px solid var(--accent); margin-bottom:12px;">
+                <div style="font-size:12px; color:var(--ink-2); text-transform:uppercase;">Total Queries ({eod_date_str})</div>
+                <div style="font-size:28px; font-weight:800; color:var(--accent); margin-top:2px;">{eod_stats['total_queries']}</div>
+                <div style="font-size:12px; color:var(--ink-2); margin-top:4px;">Unique Stocks: <strong style="color:var(--ink);">{eod_stats['unique_stocks']}</strong></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
         if eod_stats["top_searched"]:
-            st.markdown("<strong style='font-size:13px; color:#c9d1d9;'>Most Searched Today</strong>", unsafe_allow_html=True)
+            st.markdown("<strong style='font-size:13px; color:var(--ink-2);'>Most Searched Today</strong>", unsafe_allow_html=True)
 
             for s_item in eod_stats["top_searched"]:
                 st.markdown(
                     f"""
-                    <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-                        <span style="color:#f0f6fc; font-weight:600;">{s_item['symbol']}</span>
-                        <span style="color:#58a6ff; font-weight:700;">{s_item['query_count']} queries</span>
+                    <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0; border-bottom:1px solid var(--border);">
+                        <span style="color:var(--ink); font-weight:600;">{s_item['symbol']}</span>
+                        <span style="color:var(--accent); font-weight:700;">{s_item['query_count']} queries</span>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -2318,7 +2374,7 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
             csv_cols = [c for c in ["searched_at", "symbol", "name", "signal", "confidence", "price", "source"] if c in sh_df.columns]
             csv_data = sh_df[csv_cols].to_csv(index=False)
             st.download_button(
-                label=f"📥 Download {eod_date_str} EOD Search Log (CSV)",
+                label=f"Download {eod_date_str} EOD Search Log (CSV)",
                 data=csv_data,
                 file_name=f"StockSense_EOD_Search_Log_{eod_date_str}.csv",
                 mime="text/csv",
@@ -2330,27 +2386,30 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
                 s_sig = row.get("signal", "N/A")
                 s_conf = row.get("confidence", 0.0)
                 s_time = str(row.get("searched_at", ""))[:16]
-                s_c = SIGNAL_COLORS.get(s_sig, "#9e9e9e")
+                s_c = color_for_signal(s_sig)
 
                 sc1, sc2, sc3, sc4, sc5 = st.columns([2, 2, 1.5, 2, 1.5])
                 sc1.markdown(f"**{s_sym}**")
                 sc2.markdown(f"<span style='color:{s_c}; font-weight:700;'>{s_sig}</span>", unsafe_allow_html=True)
                 sc3.markdown(f"<span class='mono-font'>{s_conf:.1f}%</span>", unsafe_allow_html=True)
-                sc4.markdown(f"<span style='color:#8b949e; font-size:12px;'>{s_time}</span>", unsafe_allow_html=True)
-                if sc5.button("⚡ Re-Analyse", key=f"sh_btn_{s_idx}_{s_sym}"):
+                sc4.markdown(f"<span style='color:var(--ink-2); font-size:12px;'>{s_time}</span>", unsafe_allow_html=True)
+                if sc5.button("Re-Analyse", key=f"sh_btn_{s_idx}_{s_sym}"):
                     load_and_analyse(s_sym)
                     st.rerun()
         else:
             st.info(f"No search events logged for {eod_date_str} yet. Searches made today will automatically appear here.")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<hr style='border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
-    st.markdown("### 👥 Registered User Profiles & Access Log")
-    user_list = get_all_users()
-    if user_list:
-        with st.expander(f"📋 View Registered App Users ({len(user_list)} User Record{'s' if len(user_list) > 1 else ''})"):
-            u_df = pd.DataFrame(user_list)
-            st.dataframe(u_df[["id", "name", "email", "phone", "created_at", "last_login"]], use_container_width=True)
+    st.markdown("<hr style='border-color:var(--border);'>", unsafe_allow_html=True)
+    # The registered-user table used to be rendered here in full — every
+    # account's name, email and phone, to any signed-in visitor, with no admin
+    # role to gate it. A count is all this panel legitimately needs.
+    st.markdown("###  Accounts")
+    st.caption(
+        f"{count_users()} registered account(s). Individual account details are "
+        "not shown here — there is no admin role in this app, so any signed-in "
+        "user would be able to read them."
+    )
 
 
 
@@ -2360,15 +2419,15 @@ elif active_tab == "WATCHLIST & AUDIT LOGS":
 # TAB 6 — INSTITUTIONAL EQUITY RESEARCH (LLM & GEMINI INTELLIGENCE)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "INSTITUTIONAL RESEARCH":
+elif active_tab == "Research":
 
-    st.markdown("### 🏛️ Institutional Equity Research Engine (Gemini / LLM Intelligence)")
+    st.markdown("###  Institutional Equity Research Engine (Gemini / LLM Intelligence)")
     st.markdown(
         """
-        <div class="ai-box" style="padding:14px 20px; margin-bottom:16px; border-radius:12px;">
+        <div class="ai-box"style="padding:14px 20px; margin-bottom:16px; border-radius:12px;">
             <div style="font-size:13.5px; line-height:1.5;">
-                Act like a disciplined Indian equity research analyst using <strong>verifiable public information</strong> (annual reports, concalls, BSE/NSE filings).
-                Generate institutional-grade research across <strong>13 distinct prompts</strong> (Business Model, Moat Score, DCF Sandbox, Downside Risk Ranking, FII/DII Thesis, Bull/Bear Debate, Governance Scorecard, and Peer Tables).
+                Act like a disciplined Indian equity research analyst using <strong>verifiable public information</strong>(annual reports, concalls, BSE/NSE filings).
+                Generate institutional-grade research across <strong>13 distinct prompts</strong>(Business Model, Moat Score, DCF Sandbox, Downside Risk Ranking, FII/DII Thesis, Bull/Bear Debate, Governance Scorecard, and Peer Tables).
             </div>
         </div>
         """,
@@ -2379,7 +2438,7 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
     r_col1, r_col2 = st.columns([1, 2.5])
 
     with r_col1:
-        st.markdown("#### ⚙️ Research Controls")
+        st.markdown("####  Research Controls")
 
         res_default_sym = st.session_state.get("selected_symbol", "RELIANCE.NS")
         res_default_name = st.session_state.get("company_name", get_stock_name(res_default_sym))
@@ -2397,7 +2456,7 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
             raw_input = research_company_input.strip()
             res_symbol = normalise_symbol(raw_input, "NSE")
             res_comp_name = get_stock_name(res_symbol)
-            if res_comp_name == res_symbol and len(raw_input) > 2:
+            if res_comp_name == res_symbol and len(raw_input) >2:
                 res_comp_name = raw_input.title()
         else:
             res_symbol = res_default_sym
@@ -2405,8 +2464,8 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
 
         st.markdown(
             f"""
-            <div style="background:rgba(88,166,255,0.08); border:1px solid rgba(88,166,255,0.2); border-radius:8px; padding:6px 12px; margin-bottom:12px; font-size:12.5px;">
-                Target: <strong style="color:#58a6ff;">{res_comp_name}</strong> <span style="color:#8b949e;">({res_symbol})</span>
+            <div style="background:rgba(88,166,255,0.08); border:1px solid var(--border); border-radius:8px; padding:6px 12px; margin-bottom:12px; font-size:12.5px;">
+                Target: <strong style="color:var(--accent);">{res_comp_name}</strong> <span style="color:var(--ink-2);">({res_symbol})</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2419,23 +2478,27 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
             key="llm_provider_select",
         )
 
+        # Never pre-fill with the server's key — see the alerts panel note.
+        _server_llm_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        if _server_llm_key:
+            st.caption("An API key is configured on the server; leave this blank to use it.")
         llm_api_key = st.text_input(
             "API Key (Optional)",
             type="password",
-            value=os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", os.getenv("OPENAI_API_KEY", ""))),
-            help="Enter your Gemini or OpenAI API Key. If left blank, the Built-in Engine will be used.",
+            value="",
+            help="Your own Gemini or OpenAI key. If blank, the server key is used, or the built-in engine if there isn't one.",
             key="llm_api_key_input",
-        )
+        ) or _server_llm_key
 
         report_mode = st.radio(
             "Report Generation Mode",
-            ["🚀 Full 13-Module Institutional Report", "🎯 Single Prompt Analysis"],
+            ["Full 13-Module Institutional Report", "Single Prompt Analysis"],
             index=0,
             key="report_mode_radio",
         )
 
         selected_prompt_key = "P1"
-        if report_mode == "🎯 Single Prompt Analysis":
+        if report_mode == "Single Prompt Analysis":
             prompt_choices = {k: v["title"] for k, v in INSTITUTIONAL_PROMPTS.items()}
             selected_prompt_key = st.selectbox(
                 "Select Prompt Module",
@@ -2445,7 +2508,7 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
             )
             st.caption(INSTITUTIONAL_PROMPTS[selected_prompt_key]["description"])
 
-        gen_report_btn = st.button("⚡ Generate Institutional Research Report", type="primary", use_container_width=True, key="gen_report_btn")
+        gen_report_btn = st.button("Generate Institutional Research Report", type="primary", use_container_width=True, key="gen_report_btn")
 
     with r_col2:
         if gen_report_btn:
@@ -2459,8 +2522,8 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
                     curr_price = float(df_res["Close"].iloc[-1])
                     curr_sig = sig_res.signal
                     curr_conf = float(sig_res.confidence)
-                    curr_rsi = float(df_res["RSI"].iloc[-1]) if "RSI" in df_res.columns else 50.0
-                    curr_adx = float(df_res["ADX"].iloc[-1]) if "ADX" in df_res.columns else 20.0
+                    curr_rsi = float(df_res["RSI"].iloc[-1]) if "RSI"in df_res.columns else 50.0
+                    curr_adx = float(df_res["ADX"].iloc[-1]) if "ADX"in df_res.columns else 20.0
                 except Exception as exc:
                     logger.warning("Error computing indicators for %s: %s", res_symbol, exc)
                     try:
@@ -2489,20 +2552,25 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
                 }
 
                 generated_outputs = {}
-                keys_to_run = list(INSTITUTIONAL_PROMPTS.keys()) if report_mode == "🚀 Full 13-Module Institutional Report" else [selected_prompt_key]
+                keys_to_run = list(INSTITUTIONAL_PROMPTS.keys()) if report_mode == "Full 13-Module Institutional Report"else [selected_prompt_key]
 
                 for p_key in keys_to_run:
                     p_info = INSTITUTIONAL_PROMPTS[p_key]
-                    prompt_formatted = p_info["template"].format(company_name=res_comp_name, symbol=res_symbol)
+                    # Prepend the anti-fabrication preamble. The model has no
+                    # filings and no retrieval here, so without this it will
+                    # produce confident, well-formatted, invented figures.
+                    prompt_formatted = build_grounded_prompt(
+                        p_info["template"], company_name=res_comp_name, symbol=res_symbol
+                    )
 
                     res_text = ""
-                    if "Gemini" in llm_provider and llm_api_key.strip():
+                    if "Gemini"in llm_provider and llm_api_key.strip():
                         try:
                             res_text = call_gemini_api(prompt_formatted, llm_api_key.strip())
                         except Exception as exc:
                             st.warning(f"Gemini API fallback for {p_key}: {exc}")
                             res_text = generate_fallback_institutional_report(p_key, res_symbol, res_comp_name, metrics_pack)
-                    elif "OpenAI" in llm_provider and llm_api_key.strip():
+                    elif "OpenAI"in llm_provider and llm_api_key.strip():
                         try:
                             res_text = call_openai_api(prompt_formatted, llm_api_key.strip())
                         except Exception as exc:
@@ -2520,30 +2588,33 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
                     "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
 
-        if "institutional_report_data" in st.session_state and st.session_state.institutional_report_data:
+        if "institutional_report_data"in st.session_state and st.session_state.institutional_report_data:
             rep = st.session_state.institutional_report_data
             outputs = rep["outputs"]
+
+            st.error(f" {RESEARCH_DISCLAIMER}", icon="")
 
             st.markdown(
                 f"""
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                     <div>
-                        <span style="font-size:18px; font-weight:800; color:#58a6ff;">🏛️ Research Report: {rep['company_name']} ({rep['symbol']})</span>
-                        <div style="font-size:11px; color:#8b949e;">Generated: {rep['generated_at']}</div>
+                        <span style="font-size:18px; font-weight:800; color:var(--accent);">Research Report: {rep['company_name']} ({rep['symbol']})</span>
+                        <div style="font-size:11px; color:var(--ink-2);">Generated: {rep['generated_at']}</div>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            full_md_text = f"# 🏛️ Institutional Equity Research Report: {rep['company_name']} ({rep['symbol']})\n"
-            full_md_text += f"**Date**: {rep['generated_at']} | **Analyst Lens**: Verifiable Public Filings & Institutional Mandate\n\n"
+            full_md_text = f"#  Equity Research Notes: {rep['company_name']} ({rep['symbol']})\n"
+            full_md_text += f"**Generated**: {rep['generated_at']}\n\n"
+            full_md_text += f">**{RESEARCH_DISCLAIMER}**\n\n"
             for k, text in outputs.items():
                 title = INSTITUTIONAL_PROMPTS[k]["title"]
                 full_md_text += f"## {title}\n{text}\n\n---\n\n"
 
             st.download_button(
-                label="📥 Download Complete Equity Research Report (.md)",
+                label="Download Complete Equity Research Report (.md)",
                 data=full_md_text,
                 file_name=f"Institutional_Research_{rep['symbol']}_{datetime.now().strftime('%Y%m%d')}.md",
                 mime="text/markdown",
@@ -2554,14 +2625,23 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
 
             for k, text in outputs.items():
                 title = INSTITUTIONAL_PROMPTS[k]["title"]
-                with st.expander(f"📌 {title}", expanded=True):
-                    st.markdown(text, unsafe_allow_html=True)
+                with st.expander(f" {title}", expanded=True):
+                    # Prompts that ask for hard numbers are the ones most
+                    # likely to be answered with confident invention.
+                    if k in NUMERIC_PROMPTS:
+                        st.warning(
+                            "This section asks for specific financial figures. The model "
+                            "cannot look them up — check every number against the "
+                            "company's filings before using it.",
+                            icon="",
+                        )
+                    st.markdown(text, unsafe_allow_html=False)
         else:
             st.markdown(
                 """
-                <div style="text-align:center;padding:70px 20px;color:#8b949e;">
-                    <div style="font-size:52px;margin-bottom:16px;">🏛️</div>
-                    <h3 style="color:#58a6ff; margin-bottom:8px;">Institutional Equity Research Sandbox</h3>
+                <div style="text-align:center;padding:70px 20px;color:var(--ink-2);">
+                    <div style="font-size:52px;margin-bottom:16px;"></div>
+                    <h3 style="color:var(--accent); margin-bottom:8px;">Institutional Equity Research Sandbox</h3>
                     <p>Select your research parameters and click <strong>Generate Institutional Research Report</strong> to run all 13 prompts (Business Model, Moat Scorecard, Valuation DCF, Risk Ranking, Bull/Bear Debate, Governance Scorecard, and Peer Comparison).</p>
                 </div>
                 """,
@@ -2573,24 +2653,24 @@ elif active_tab == "INSTITUTIONAL RESEARCH":
 # TAB 7 — ALERTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif active_tab == "ALERT MANAGER":
+elif active_tab == "Alerts":
 
 
-    st.markdown("### 🔔 Alerts & Notifications")
+    st.markdown("###  Alerts & Notifications")
 
     al1, al2 = st.columns(2)
 
     with al1:
         st.markdown(
             """
-            <div style="background:linear-gradient(135deg,#161b22,#1c2333);
-                        border:1px solid rgba(88,166,255,0.2);border-radius:12px;padding:20px;">
-                <h4 style="color:#29b6f6;margin:0 0 12px;">📱 Telegram Setup</h4>
-                <ol style="color:#8b949e;font-size:13px;padding-left:16px;">
+            <div style="background:linear-gradient(135deg,var(--panel),#1c2333);
+                        border:1px solid var(--border);border-radius:12px;padding:20px;">
+                <h4 style="color:#29b6f6;margin:0 0 12px;">Telegram Setup</h4>
+                <ol style="color:var(--ink-2);font-size:13px;padding-left:16px;">
                     <li>Create a Telegram bot via <strong>@BotFather</strong></li>
                     <li>Copy the bot token</li>
                     <li>Start a chat with your bot and get the chat ID</li>
-                    <li>Enter credentials in the sidebar → Alert Settings</li>
+                    <li>Enter credentials in the sidebar  Alert Settings</li>
                 </ol>
             </div>
             """,
@@ -2600,14 +2680,14 @@ elif active_tab == "ALERT MANAGER":
     with al2:
         st.markdown(
             """
-            <div style="background:linear-gradient(135deg,#161b22,#1c2333);
-                        border:1px solid rgba(88,166,255,0.2);border-radius:12px;padding:20px;">
-                <h4 style="color:#ff9800;margin:0 0 12px;">📧 Email Setup</h4>
-                <ol style="color:#8b949e;font-size:13px;padding-left:16px;">
+            <div style="background:linear-gradient(135deg,var(--panel),#1c2333);
+                        border:1px solid var(--border);border-radius:12px;padding:20px;">
+                <h4 style="color:#ff9800;margin:0 0 12px;">Email Setup</h4>
+                <ol style="color:var(--ink-2);font-size:13px;padding-left:16px;">
                     <li>Use a Gmail account</li>
                     <li>Enable <strong>App Passwords</strong> in Google Account</li>
                     <li>Generate an app-specific password</li>
-                    <li>Enter credentials in the sidebar → Alert Settings</li>
+                    <li>Enter credentials in the sidebar  Alert Settings</li>
                 </ol>
             </div>
             """,
@@ -2615,7 +2695,7 @@ elif active_tab == "ALERT MANAGER":
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### 🧪 Test Alerts")
+    st.markdown("####  Test Alerts")
     if st.session_state.signal_result:
         result = st.session_state.signal_result
         risk = st.session_state.risk
@@ -2626,8 +2706,8 @@ elif active_tab == "ALERT MANAGER":
                     result.symbol, result.signal, result.confidence,
                     risk.entry_price, risk.stop_loss, risk.take_profit, risk.risk_reward,
                 )
-                ok = send_telegram_alert(msg, chat_id=tg_chat or None)
-                st.success("✅ Sent!") if ok else st.error("❌ Failed (check credentials).")
+                ok = send_telegram_alert(msg, chat_id=tg_chat, bot_token=tg_token)
+                st.success("Sent!") if ok else st.error("Failed (check credentials).")
         with tc2:
             if st.button("Test Email", use_container_width=True):
                 subj, body = format_signal_email(
@@ -2635,17 +2715,19 @@ elif active_tab == "ALERT MANAGER":
                     risk.entry_price, risk.stop_loss, risk.take_profit, risk.risk_reward,
                     result.reasons,
                 )
-                ok = send_email_alert(subj, body, receiver=email_to or None)
-                st.success("✅ Sent!") if ok else st.error("❌ Failed (check credentials).")
+                ok = send_email_alert(
+                    subj, body, receiver=email_to, sender=email_from, password=email_pass
+                )
+                st.success("Sent!") if ok else st.error("Failed (check credentials).")
     else:
         st.info("Load a stock first to test alerts.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
         """
-        <div style="background:rgba(22,27,34,0.8);border-radius:12px;padding:20px;">
-            <h4 style="color:#8b949e;margin:0 0 8px;">🔮 Future Alert Triggers</h4>
-            <ul style="color:#8b949e;font-size:13px;">
+        <div style="background:var(--panel);border-radius:12px;padding:20px;">
+            <h4 style="color:var(--ink-2);margin:0 0 8px;">Future Alert Triggers</h4>
+            <ul style="color:var(--ink-2);font-size:13px;">
                 <li>New Buy / Sell signal detected</li>
                 <li>Target price hit</li>
                 <li>Stop loss triggered</li>
@@ -2664,22 +2746,24 @@ elif active_tab == "ALERT MANAGER":
 
 st.markdown(
     f"""
-    <div style="text-align:center;padding:40px 20px 20px;color:#484f58;font-size:12px;">
-        <div style="margin-bottom:8px;">
-            {APP_NAME} v{APP_VERSION} — Built with ❤️ using Streamlit & Python
-        </div>
-        <div>
-            ⚠️ <strong>Disclaimer:</strong> This tool is for educational purposes only.
-            Not financial advice. Always do your own research.
+    <div style="border-top:1px solid var(--border); margin-top:36px; padding:18px 2px 8px; color:var(--ink-2); font-size:12px; line-height:1.7;">
+        <div><strong>Disclaimer:</strong> Educational use only. Not investment advice.
+        Always do your own research and consult a SEBI-registered adviser.</div>
+        <div style="color:var(--ink-3); margin-top:2px;">
+            {APP_NAME} v{APP_VERSION} &middot; Prices from Yahoo Finance, delayed
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# Auto-refresh rerun
+# Auto-refresh rerun.
+# Sleeping 1 second and rerunning re-executed the whole page at 1 Hz no matter
+# what interval the user picked — the slider only gated the data refetch.
+# Sleep for the actual interval instead, so one rerun happens per period.
 if auto_refresh:
-    time.sleep(1)
+    elapsed_since_refresh = time.time() - st.session_state.last_refresh
+    time.sleep(max(1.0, refresh_interval - elapsed_since_refresh))
     st.rerun()
 
 

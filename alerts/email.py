@@ -22,35 +22,51 @@ from config import (
 logger = logging.getLogger(__name__)
 
 
-def send_email_alert(subject: str, body_html: str, receiver: str = EMAIL_RECEIVER) -> bool:
+def send_email_alert(
+    subject: str,
+    body_html: str,
+    receiver: str = "",
+    sender: str = "",
+    password: str = "",
+) -> bool:
     """
     Send an HTML email alert via SMTP (Gmail / any SMTP).
+
+    Credentials passed in take precedence over the configured values, so the
+    sidebar fields actually do something. Previously they were collected and
+    ignored, and the "Test Email" button could never succeed.
 
     Args:
         subject:    Email subject.
         body_html:  HTML body content.
-        receiver:   Recipient email address.
+        receiver:   Recipient address. Falls back to config.
+        sender:     From address. Falls back to config.
+        password:   SMTP password / app password. Falls back to config.
 
     Returns:
         True on success, False on failure.
     """
-    if not EMAIL_SENDER or not EMAIL_PASSWORD or not receiver:
+    from_addr = (sender or EMAIL_SENDER or "").strip()
+    to_addr = (receiver or EMAIL_RECEIVER or "").strip()
+    secret = password or EMAIL_PASSWORD or ""
+
+    if not from_addr or not secret or not to_addr:
         logger.warning("Email not configured. Set EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER.")
         return False
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = EMAIL_SENDER
-    msg["To"] = receiver
+    msg["From"] = from_addr
+    msg["To"] = to_addr
     msg.attach(MIMEText(body_html, "html"))
 
     try:
-        with smtplib.SMTP(EMAIL_SMTP_HOST, EMAIL_SMTP_PORT) as server:
+        with smtplib.SMTP(EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, timeout=20) as server:
             server.ehlo()
             server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_SENDER, receiver, msg.as_string())
-        logger.info("Email alert sent to %s", receiver)
+            server.login(from_addr, secret)
+            server.sendmail(from_addr, to_addr, msg.as_string())
+        logger.info("Email alert sent to %s", to_addr)
         return True
     except Exception as exc:  # noqa: BLE001
         logger.error("Email alert failed: %s", exc)

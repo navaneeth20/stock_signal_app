@@ -75,8 +75,12 @@ def test_compute_supertrend(sample_ohlcv):
 def test_compute_adx(sample_ohlcv):
     df = compute_adx(sample_ohlcv, period=14)
     assert "ADX" in df.columns
-    assert "+DI" in df.columns
-    assert "-DI" in df.columns
+    # compute_adx emits DI_Plus / DI_Minus. This test asserted "+DI" / "-DI",
+    # which the function has never produced, so it could not have passed.
+    assert "DI_Plus" in df.columns
+    assert "DI_Minus" in df.columns
+    valid = df.dropna(subset=["ADX", "DI_Plus", "DI_Minus"])
+    assert (valid["ADX"] >= 0).all() and (valid["ADX"] <= 100).all()
 
 
 def test_compute_atr(sample_ohlcv):
@@ -88,11 +92,12 @@ def test_compute_atr(sample_ohlcv):
 def test_compute_bollinger(sample_ohlcv):
     df = compute_bollinger(sample_ohlcv, period=20, std_dev=2.0)
     assert "BB_Upper" in df.columns
-    assert "BB_Middle" in df.columns
+    # The column is BB_Mid, not BB_Middle — another assertion that never held.
+    assert "BB_Mid" in df.columns
     assert "BB_Lower" in df.columns
-    valid = df.dropna(subset=["BB_Upper", "BB_Middle", "BB_Lower"])
-    assert (valid["BB_Upper"] >= valid["BB_Middle"]).all()
-    assert (valid["BB_Middle"] >= valid["BB_Lower"]).all()
+    valid = df.dropna(subset=["BB_Upper", "BB_Mid", "BB_Lower"])
+    assert (valid["BB_Upper"] >= valid["BB_Mid"]).all()
+    assert (valid["BB_Mid"] >= valid["BB_Lower"]).all()
 
 
 def test_compute_all_indicators(sample_ohlcv):
