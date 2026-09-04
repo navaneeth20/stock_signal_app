@@ -242,7 +242,9 @@ div[data-testid="stRadio"] [role="radiogroup"] label span {
     font-weight: inherit !important;
     margin: 0 !important;
 }
+div[data-testid="stRadio"] [role="radiogroup"] label [data-testid="stRadioButtonCustomIcon"],
 div[data-testid="stRadio"] [role="radiogroup"] label >div:first-child,
+div[data-testid="stRadio"] [data-baseweb="radio"] >div:first-child,
 div[data-testid="stRadio"] [role="radiogroup"] label input[type="radio"] {
     display: none !important;
 }
@@ -250,10 +252,12 @@ div[data-testid="stRadio"] [role="radiogroup"] label:hover {
     background: var(--panel-alt) !important;
     color: var(--ink) !important;
 }
-div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-    background: var(--panel-alt) !important;
-    color: var(--ink) !important;
-    font-weight: 600 !important;
+div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked),
+div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
+div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span {
+    background: var(--accent) !important;
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
 }
 
 /* ── Panels ── */
@@ -494,27 +498,18 @@ def _init_session() ->None:
 # custom properties on top.
 CONTROL_PANEL_DARK_CSS = """
 <style>
-/* Dark counterpart of the Control Panel system. Only the tokens change —
-   every component rule in the base stylesheet reads through these variables,
-   so geometry, weight and spacing stay identical between themes.
-
-   Selectors are doubled (:root:root, :root .stApp) to raise specificity above
-   the base stylesheet's. That is load-bearing: this block is injected from the
-   sidebar, and Streamlit places the sidebar BEFORE main in the DOM, so the
-   base stylesheet always lands later in document order and wins any tie on
-   equal specificity. Without the doubling, dark mode silently does nothing. */
 :root:root {
     --ground: #0F1318;
     --panel: #161B22;
     --panel-alt: #1C222B;
     --border: #252C36;
     --border-soft: #1D232B;
-    --ink: #E6EAF0;
-    --ink-2: #9BA6B4;
-    --ink-3: #7A8593;
-    --ink-4: #5E6874;
-    --accent: #7C8CE8;
-    --accent-hover: #95A3F0;
+    --ink: #F0F4F8;
+    --ink-2: #B0BAC9;
+    --ink-3: #8B98A7;
+    --ink-4: #8B98A7;
+    --accent: #3D4FB8;
+    --accent-hover: #5062D4;
     --accent-wash: #1B2138;
     --pos: #3FAE79;
     --neg: #E06A5F;
@@ -534,15 +529,59 @@ CONTROL_PANEL_DARK_CSS = """
 :root [data-testid="stSidebar"] label,
 :root [data-testid="stSidebar"] span { color: var(--ink) !important; }
 
-/* On the dark ground the accent is light, so button text has to invert. */
-:root .stButton > button[kind="primary"],
-:root .stButton > button[kind="primary"] *,
-:root [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"],
-:root [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] * {
-    color: #0F1318 !important;
+/* Global Text, Headings & Markdown Containers in Dark Mode */
+:root:root h1, :root:root h2, :root:root h3, :root:root h4, :root:root h5, :root:root h6,
+:root:root p, :root:root label, :root:root .section-header,
+:root:root [data-testid="stMarkdownContainer"] p,
+:root:root [data-testid="stMarkdownContainer"] span,
+:root:root [data-testid="stMarkdownContainer"] div,
+:root:root [data-testid="stHeader"] * {
+    color: var(--ink) !important;
 }
-:root [data-testid="stMetricValue"] { color: var(--ink) !important; }
-:root [data-testid="stMetricLabel"] { color: var(--ink-2) !important; }
+
+/* Secondary labels & section subtext */
+:root:root [data-testid="stWidgetLabel"] p,
+:root:root [data-testid="stWidgetLabel"] label,
+:root:root [data-testid="stWidgetLabel"] span,
+:root:root [data-testid="stMetricLabel"],
+:root:root .metric-label {
+    color: var(--ink-2) !important;
+}
+
+/* Executive Segmented Navigation Bar in Dark Mode */
+:root:root div[data-testid="stRadio"] [role="radiogroup"] {
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+}
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label,
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label *,
+:root:root div[data-testid="stRadio"] [data-baseweb="radio"] *,
+:root:root div[data-testid="stRadio"] p,
+:root:root div[data-testid="stRadio"] span {
+    color: var(--ink-2) !important;
+}
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label:hover,
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label:hover * {
+    color: var(--ink) !important;
+    background: var(--panel-alt) !important;
+}
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked),
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) * {
+    color: #FFFFFF !important;
+    background: var(--accent) !important;
+    font-weight: 700 !important;
+}
+
+/* Hide Radio Bullet Icons across themes for clean segmented pills */
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label [data-testid="stRadioButtonCustomIcon"],
+:root:root div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child,
+:root:root div[data-testid="stRadio"] [data-baseweb="radio"] > div:first-child,
+:root:root div[data-testid="stRadio"] input[type="radio"] {
+    display: none !important;
+}
+
+:root:root [data-testid="stMetricValue"] { color: var(--ink) !important; }
+:root:root [data-testid="stMetricLabel"] { color: var(--ink-2) !important; }
 </style>
 """
 
