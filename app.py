@@ -121,26 +121,27 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        "Get Help": "https://github.com/",
+        "Get Help": None,
+        "Report a bug": None,
         "About": f"**{APP_NAME} v{APP_VERSION}** — {APP_TAGLINE}",
     },
 )
 
 # ── Design system: "Control Panel" ────────────────────────────────────────────
-# Light is the baseline and is injected at module scope, so it applies to every
-# screen including the login page. The sidebar's theme control layers a dark
-# override on top of this.
-#
-# Rules this stylesheet holds to, so later edits don't drift:
-#   * Colour is semantic only — buy/sell/hold and one accent. Everything
-#     structural is greyscale.
-#   * No gradient text, no glows, no coloured drop shadows.
-#   * Hierarchy comes from type weight, rule weight and spacing.
-#   * Numerals are tabular JetBrains Mono so columns of figures line up.
 st.markdown(
     """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Hide Streamlit default top header bar, fork icon, deploy button & main menu */
+#MainMenu { visibility: hidden !important; display: none !important; }
+header { visibility: hidden !important; display: none !important; height: 0 !important; }
+footer { visibility: hidden !important; display: none !important; }
+[data-testid="stHeader"] { display: none !important; height: 0 !important; }
+[data-testid="stAppDeployButton"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+.stAppHeader { display: none !important; height: 0 !important; }
 
 :root {
     --ground: #F5F7F9;

@@ -22,3 +22,6 @@ headless = true
 
 [browser]
 gatherUsageStats = false
+
+[ui]
+hideTopBar = true
