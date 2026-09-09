@@ -172,6 +172,26 @@ def initialise_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist (user_id, symbol)"
         )
 
+        # Seed default account if users table is empty (e.g. fresh cloud container startup)
+        user_count = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+        if user_count == 0:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                """
+                INSERT INTO users (name, phone, email, password_hash, created_at, last_login)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "Navaneethan G",
+                    "9840163868",
+                    "dreamnava@gmail.com",
+                    hash_password("Stocks@2026"),
+                    now_str,
+                    now_str,
+                ),
+            )
+            logger.info("Auto-seeded default user account dreamnava@gmail.com")
+
     logger.info("Database initialised at %s", DB_PATH)
 
 
